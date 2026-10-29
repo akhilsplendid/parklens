@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Camera, Image as ImageIcon, RotateCcw, Share2, Volume2, ExternalLink, Globe2, Mountain, Sprout, Lightbulb } from "lucide-react";
-import { api, shareCard, track, speak, useStored, type LensResult, type Party } from "@/lib/api";
+import { api, errMsg, shareCard, track, speak, useStored, type LensResult, type Party } from "@/lib/api";
 
 type TT = { mode: "wild" | "ancestor" | "future"; url: string; label: string };
 const MODES: { mode: TT["mode"]; label: string; Icon: typeof Globe2 }[] = [
@@ -59,7 +59,7 @@ export default function Lens() {
       track(r.species_id ? "lens_hit" : "lens_miss", { ms: Math.round(performance.now() - t0), expected: !!here });
       setResult(r);
       if (r.found && r.species_id) speak(`${r.narration} ${r.fun_fact}`, r.language);
-    } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); }
   }
 
   async function timeTravel(mode: TT["mode"]) {
@@ -70,7 +70,7 @@ export default function Lens() {
       track("timetravel", { mode });
       setTt({ mode, url: `data:${r.mime};base64,${r.image_b64}`, label: r.label });
       setSlider(50);
-    } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); }
   }
 
   async function share() {

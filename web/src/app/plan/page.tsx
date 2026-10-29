@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { PawPrint, FerrisWheel, Coffee, Footprints, Check, Undo2, ExternalLink, RefreshCw } from "lucide-react";
 import Recorder from "@/components/Recorder";
 import Art from "@/components/Art";
-import { api, nowHHMM, track, saveStored, speak, useStored, type Plan } from "@/lib/api";
+import { api, errMsg, nowHHMM, track, saveStored, speak, useStored, type Plan } from "@/lib/api";
 import { Clock } from "lucide-react";
 
 const ICON = { animal: PawPrint, attraction: FerrisWheel, break: Coffee } as const;
@@ -39,7 +39,7 @@ export default function PlanPage() {
       void api.warm(fresh.party, fresh.stops.filter((s) => s.kind === "animal").map((s) => s.item_id));
       setUtter("");
       if (fresh.summary) speak(fresh.summary, fresh.party.language);
-    } catch (e) { setErr(String(e)); } finally { setBusy(false); }
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
   }
 
   if (!plan)

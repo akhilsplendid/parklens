@@ -63,6 +63,13 @@ async function check<T>(r: Response): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+// Human-readable error for the UI.
+export function errMsg(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (/failed to fetch|networkerror|load failed/i.test(m)) return "Can't reach the ParkLens API. Is the backend running?";
+  return m.replace(/^Error:\s*/, "");
+}
+
 // Anonymous product events (no ids, no text, no images). Fire-and-forget.
 export function track(name: string, props: Record<string, string | number | boolean> = {}) {
   try {

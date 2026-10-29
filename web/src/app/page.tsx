@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Clock, Languages, Wand2 } from "lucide-react";
 import Recorder from "@/components/Recorder";
 import Art from "@/components/Art";
-import { api, saveStored, track, useStored, type Party } from "@/lib/api";
+import { api, errMsg, saveStored, track, useStored, type Party } from "@/lib/api";
 
 const EXAMPLE = "Two adults, Mia is 5 and 110 cm, Leo is 9 and 135 cm. We love big cats and dolphins, we have five hours.";
 
@@ -23,7 +23,7 @@ export default function Onboard() {
 
   async function run(fn: () => Promise<Party>) {
     setErr(null);
-    try { saveStored("party", await fn()); } catch (e) { setErr(String(e)); } finally { setBusy(null); }
+    try { saveStored("party", await fn()); } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); }
   }
 
   async function makePlan() {
@@ -35,7 +35,7 @@ export default function Onboard() {
       saveStored("plan", plan); saveStored("done", []);
       void api.warm(party, plan.stops.filter((s) => s.kind === "animal").map((s) => s.item_id));
       router.push("/plan");
-    } catch (e) { setErr(String(e)); setBusy(null); }
+    } catch (e) { setErr(errMsg(e)); setBusy(null); }
   }
 
   return (

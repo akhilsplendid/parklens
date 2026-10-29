@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, saveStored, useStored, type KbItem, type ParkMap, type Plan } from "@/lib/api";
+import { api, errMsg, saveStored, useStored, type KbItem, type ParkMap, type Plan } from "@/lib/api";
 
 // A schematic park map drawn from the GPS points on the park's own pages: every located
 // animal and ride, the planned route in order, and an "I'm here" marker for demo mode.
@@ -13,10 +13,16 @@ export default function MapPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.items(), api.map()]).then(([i, m]) => { setItems(i); setMap(m); }).catch((e) => setErr(String(e)));
+    Promise.all([api.items(), api.map()]).then(([i, m]) => { setItems(i); setMap(m); }).catch((e) => setErr(errMsg(e)));
   }, []);
 
-  if (err) return <p className="text-red-700">{err}</p>;
+  if (err)
+    return (
+      <div className="card space-y-1">
+        <p className="font-bold">Map unavailable</p>
+        <p className="text-sm text-muted">{err}</p>
+      </div>
+    );
   if (!map?.bounds) return <p className="text-muted">Loading map…</p>;
 
   const W = 1000, H = 420, pad = 40;
