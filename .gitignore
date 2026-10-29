@@ -1,0 +1,18 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+data/generated/
+.next/
+
+# local
+web/.env.local
+web/node_modules/
+web/.next/
+web/tsconfig.tsbuildinfo
+web/AGENTS.md
+data/samples/
+api/.venv/
+.venv/
+*.tsbuildinfo
+.agent-context/
