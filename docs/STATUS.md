@@ -16,6 +16,10 @@
 - Demo clock on the Plan tab (tap the time line: real → 13:00 → 15:00 → 17:00) for the re-plan shot
 - 23 backend tests, ruff clean; web builds clean (tsc + eslint)
 - Docker (api + web), Fly.io config, deploy guide, demo script, README with architecture
+- CI builds and lints the web app as well as the API
+- Two Higgsfield clips for the video (opening shot 9:16, tiger 16:9 to point the Lens at): links in docs/DEMO.md
+- docs/SUBMISSION.md: text for the hackathon form, ready to paste after deploy
+- Full stack smoke-tested again today from the Linux VM against the real API: plan now starts at the dolphins (1 min from the gate), Wildfire and Sjörövarskeppet skipped for Mia, /events writes
 
 ## Evening checklist (you)
 1. `cd web && npm install` once on Windows (lucide-react, framer-motion were added), then

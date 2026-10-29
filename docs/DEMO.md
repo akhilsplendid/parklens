@@ -17,12 +17,24 @@ Speak slowly; judges watch dozens of these. Every claim below is something the a
 | 2:40–2:55 | Laptop: the architecture diagram from the README. | "Five Meta models, one FastAPI backend, a Next.js PWA. Grounded answers, hard rules in code, and a knowledge base built from any park's website in one script." |
 | 2:55–3:00 | ParkLens logo, the public URL, the GitHub link. | "ParkLens. Works for any park with a website." |
 
+## Generated clips (Higgsfield, no branding, free to use in the video)
+
+Download these from your browser (our tooling can't reach the CDN) into `docs/assets/`
+(gitignored) before editing:
+
+- Opening shot, 6 s, 9:16, with ambience: family walking into a pine-forest park at golden hour
+  https://d8j0ntlcm91z4.cloudfront.net/user_35mXGTcXdv7Rpzl6WFcHzKJVf0G/hf_20261029_122346_2e9cdda2-6035-4a5d-a65d-b711fd2fd770.mp4
+- Tiger clip, 8 s, 16:9: play it full-screen on the laptop and point the phone's Lens at it
+  https://d8j0ntlcm91z4.cloudfront.net/user_35mXGTcXdv7Rpzl6WFcHzKJVf0G/hf_20261029_123211_9d6935c5-4165-4df5-bee6-1467b1ccf3ae.mp4
+
+Both are also in your Higgsfield library.
+
 ## Before recording
 
 - [ ] Public URL deployed (docs/DEPLOY.md) and tested on the phone
 - [ ] Family set up in advance? No: do it live, it's the voice moment. But rehearse the sentence.
 - [ ] Plan warm-up: make the plan once before recording so narration is cached and the Lens answers fast
-- [ ] Tiger clip ready on the laptop (a free-licence video; don't use the park's own images)
+- [ ] Tiger clip (above) ready full-screen on the laptop; don't use the park's own images
 - [ ] Phone on Do Not Disturb, brightness up, battery > 50%
 - [ ] For the re-plan shot, tap the small clock line under the re-plan box on the Plan tab until it says 15:00 (demo clock); tap again to go back to real time
 
