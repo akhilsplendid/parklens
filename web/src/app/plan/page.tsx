@@ -6,6 +6,7 @@ import { PawPrint, FerrisWheel, Coffee, Footprints, Check, Undo2, ExternalLink, 
 import Recorder from "@/components/Recorder";
 import Art from "@/components/Art";
 import { api, nowHHMM, track, saveStored, speak, useStored, type Plan } from "@/lib/api";
+import { Clock } from "lucide-react";
 
 const ICON = { animal: PawPrint, attraction: FerrisWheel, break: Coffee } as const;
 const TONE = { animal: "text-sky bg-sky-soft", attraction: "text-amber bg-amber-soft", break: "text-forest bg-forest-soft" } as const;
@@ -16,6 +17,13 @@ export default function PlanPage() {
   const [utter, setUtter] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const clock = useStored<string>("clock");
+  // Demo clock: re-planning uses "now"; tap the time to pretend it's later in the day.
+  function bumpClock() {
+    const order = [null, "13:00", "15:00", "17:00"];
+    const next = order[(order.indexOf(clock) + 1) % order.length];
+    saveStored("clock", next);
+  }
 
   function toggleDone(id: string) {
     saveStored("done", done.includes(id) ? done.filter((d) => d !== id) : [...done, id]);
@@ -110,6 +118,9 @@ export default function PlanPage() {
           ))}
         </div>
         {err && <p className="text-sm text-danger">{err}</p>}
+        <button onClick={bumpClock} className="flex items-center gap-1 text-xs text-muted" title="Demo clock: tap to pretend it's later">
+          <Clock className="h-3.5 w-3.5" /> It&apos;s {nowHHMM()}{clock ? " (demo clock)" : ""}
+        </button>
       </section>
     </div>
   );

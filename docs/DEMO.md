@@ -24,7 +24,7 @@ Speak slowly; judges watch dozens of these. Every claim below is something the a
 - [ ] Plan warm-up: make the plan once before recording so narration is cached and the Lens answers fast
 - [ ] Tiger clip ready on the laptop (a free-licence video; don't use the park's own images)
 - [ ] Phone on Do Not Disturb, brightness up, battery > 50%
-- [ ] Set `parklens:clock` in the browser to `15:00` for the re-plan shot (DevTools → Application → Local Storage), or do it between 9 and 18 real time
+- [ ] For the re-plan shot, tap the small clock line under the re-plan box on the Plan tab until it says 15:00 (demo clock); tap again to go back to real time
 
 ## Judging rubric, mapped
 

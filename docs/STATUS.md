@@ -13,6 +13,7 @@
   motion on the Lens box and page transitions
 - `POST /events`: anonymous usage counter (plan_made, lens_hit/miss, timetravel, replan, share)
   written to `data/generated/events.jsonl`, so we can quote real numbers in the pitch
+- Demo clock on the Plan tab (tap the time line: real → 13:00 → 15:00 → 17:00) for the re-plan shot
 - 23 backend tests, ruff clean; web builds clean (tsc + eslint)
 - Docker (api + web), Fly.io config, deploy guide, demo script, README with architecture
 
@@ -29,5 +30,4 @@
 
 ## Open items
 - Live camera + mic untested end to end on a phone (needs HTTPS tunnel or deploy).
-- `parklens:clock` localStorage override exists for the re-plan shot; a small UI toggle would be nicer.
 - Nice-to-have if time: end-of-day photo journal; quiz mode; Swedish UI strings.
