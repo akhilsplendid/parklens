@@ -17,7 +17,7 @@ export default function MapPage() {
   }, []);
 
   if (err) return <p className="text-red-700">{err}</p>;
-  if (!map?.bounds) return <p className="text-neutral-500">Loading map…</p>;
+  if (!map?.bounds) return <p className="text-muted">Loading map…</p>;
 
   const W = 1000, H = 420, pad = 40;
   const b = map.bounds;
@@ -31,11 +31,11 @@ export default function MapPage() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">{map.park}</h1>
-        <span className="text-xs text-neutral-500">{located.length} places · from the park&apos;s own pages</span>
+        <h1 className="text-2xl font-black">{map.park}</h1>
+        <span className="text-xs text-muted">{located.length} places · from the park&apos;s own pages</span>
       </header>
 
-      <div className="overflow-hidden rounded-2xl bg-emerald-950/40 ring-1 ring-emerald-900/40">
+      <div className="overflow-hidden rounded-2xl bg-[#0f2a1c] ring-1 ring-forest/30">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Park map">
           <defs>
             <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -75,7 +75,7 @@ export default function MapPage() {
         </svg>
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs text-neutral-500">
+      <div className="flex flex-wrap gap-3 text-xs text-muted">
         <span><span className="inline-block h-3 w-3 rounded-full bg-blue-400 align-middle" /> animal</span>
         <span><span className="inline-block h-3 w-3 rounded-full bg-amber-500 align-middle" /> ride</span>
         <span><span className="inline-block h-3 w-3 rounded-sm bg-white align-middle" /> entrance</span>
@@ -83,21 +83,21 @@ export default function MapPage() {
       </div>
 
       {plan ? (
-        <ol className="grid grid-cols-2 gap-1 text-sm">
+        <ol className="grid grid-cols-2 gap-1.5 text-sm">
           {route.map((s, n) => (
-            <li key={s.item_id} className={`rounded-lg px-2 py-1 ${here === s.item_id ? "bg-white text-black" : "bg-white/5"}`}>
+            <li key={s.item_id} className={`card px-2 py-1.5 ${here === s.item_id ? "ring-2 ring-forest" : ""}`}>
               <button onClick={() => saveStored("here", s.item_id)} className="text-left">
-                <span className="mr-1 font-mono text-neutral-400">{n + 1}</span>{s.name}
-                {s.walk_minutes ? <span className="ml-1 text-neutral-400">🚶{s.walk_minutes}</span> : null}
+                <span className="mr-1 font-mono text-muted">{n + 1}</span>{s.name}
+                {s.walk_minutes ? <span className="ml-1 text-muted">· {s.walk_minutes} min</span> : null}
               </button>
             </li>
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-neutral-500">No plan yet. <Link href="/" className="underline">Set up your family</Link> and the route appears here.</p>
+        <p className="text-sm text-muted">No plan yet. <Link href="/" className="underline">Set up your family</Link> and the route appears here.</p>
       )}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-muted">
         Tap a place to mark where you are (demo mode). The Lens then uses that as a hint.
         {here && <button onClick={() => saveStored("here", "")} className="ml-2 underline">clear</button>}
       </p>

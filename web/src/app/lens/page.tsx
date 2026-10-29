@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { api, shareCard, speak, useStored, type LensResult, type Party } from "@/lib/api";
+import { motion } from "framer-motion";
+import { Camera, Image as ImageIcon, RotateCcw, Share2, Volume2, ExternalLink, Globe2, Mountain, Sprout, Lightbulb } from "lucide-react";
+import { api, shareCard, track, speak, useStored, type LensResult, type Party } from "@/lib/api";
 
 type TT = { mode: "wild" | "ancestor" | "future"; url: string; label: string };
-const MODES: { mode: TT["mode"]; label: string; icon: string }[] = [
-  { mode: "wild", label: "In the wild", icon: "🌍" },
-  { mode: "ancestor", label: "1 million years ago", icon: "🦣" },
-  { mode: "future", label: "100 years ahead", icon: "🌱" },
+const MODES: { mode: TT["mode"]; label: string; Icon: typeof Globe2 }[] = [
+  { mode: "wild", label: "In the wild", Icon: Globe2 },
+  { mode: "ancestor", label: "1 million years ago", Icon: Mountain },
+  { mode: "future", label: "100 years ahead", Icon: Sprout },
 ];
 
 export default function Lens() {
@@ -51,8 +53,10 @@ export default function Lens() {
     setFrame({ blob, url, w, h });
     setResult(null); setTt(null); setErr(null);
     setBusy("Looking…");
+    const t0 = performance.now();
     try {
       const r = await api.lens(blob, party, undefined, here);
+      track(r.species_id ? "lens_hit" : "lens_miss", { ms: Math.round(performance.now() - t0), expected: !!here });
       setResult(r);
       if (r.found && r.species_id) speak(`${r.narration} ${r.fun_fact}`, r.language);
     } catch (e) { setErr(String(e)); } finally { setBusy(null); }
@@ -63,6 +67,7 @@ export default function Lens() {
     setBusy("Painting…"); setErr(null);
     try {
       const r = await api.timeTravel(frame.blob, mode, result?.species_id);
+      track("timetravel", { mode });
       setTt({ mode, url: `data:${r.mime};base64,${r.image_b64}`, label: r.label });
       setSlider(50);
     } catch (e) { setErr(String(e)); } finally { setBusy(null); }
@@ -71,6 +76,7 @@ export default function Lens() {
   async function share() {
     if (!frame || !tt || !result) return;
     const label = MODES.find((m) => m.mode === tt.mode)?.label ?? tt.mode;
+    track("share", { mode: tt.mode });
     const png = await shareCard(frame.url, tt.url, `${result.species_name} · ${label}`, label);
     const file = new File([png], "parklens.png", { type: "image/png" });
     if (navigator.canShare?.({ files: [file] })) {
@@ -89,16 +95,16 @@ export default function Lens() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">Lens</h1>
-        <span className="text-xs text-neutral-500">{party ? `for ${party.children[0]?.name ?? "you"} · ${party.language.toUpperCase()}` : "no family set"}{here ? ` · 📍 ${here}` : ""}</span>
+        <h1 className="text-2xl font-black">Lens</h1>
+        <span className="text-xs text-muted">{party ? `for ${party.children[0]?.name ?? "you"} · ${party.language.toUpperCase()}` : "no family set"}{here ? ` · 📍 ${here}` : ""}</span>
       </header>
 
       {/* Viewfinder or captured frame */}
-      <div className="relative overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: frame ? `${frame.w}/${frame.h}` : "4/3" }}>
+      <div className="relative overflow-hidden rounded-[20px] bg-black shadow-lg" style={{ aspectRatio: frame ? `${frame.w}/${frame.h}` : "4/3" }}>
         {!frame && <video ref={video} autoPlay playsInline muted className="h-full w-full object-cover" />}
         {frame && !tt && <img src={frame.url} alt="captured" className="h-full w-full object-contain" />}
         {frame && tt && (
-          <div className="relative h-full w-full select-none">
+          <div className="relative h-full w-full select-none wipe">
             <img src={frame.url} alt="now" className="absolute inset-0 h-full w-full object-contain" />
             <img src={tt.url} alt={tt.label} className="absolute inset-0 h-full w-full object-contain" style={{ clipPath: `inset(0 0 0 ${slider}%)` }} />
             <div className="absolute inset-y-0 w-0.5 bg-white" style={{ left: `${slider}%` }} />
@@ -108,50 +114,56 @@ export default function Lens() {
           </div>
         )}
         {box && !tt && (
-          <div className="absolute rounded-lg border-[3px] border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" style={box}>
-            <span className="absolute -top-6 left-0 rounded bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white">{result?.species_name}</span>
+          <motion.div initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="absolute rounded-xl border-[3px] border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" style={box}>
+            <span className="absolute -top-7 left-0 rounded-lg bg-emerald-500 px-2 py-0.5 text-xs font-extrabold text-white">{result?.species_name}</span>
+          </motion.div>
+        )}
+        {busy && (
+          <div className="absolute inset-0 bg-black/30">
+            {busy === "Looking…" && <div className="scanline" />}
+            <div className="absolute inset-x-0 bottom-3 text-center text-sm font-extrabold text-white drop-shadow">{busy}</div>
           </div>
         )}
-        {busy && <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white animate-pulse">{busy}</div>}
         {camOk === false && !frame && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-white">Camera unavailable (needs HTTPS). Use the photo button below.</div>}
       </div>
 
       <div className="flex items-center justify-center gap-4">
         {!frame ? (
-          <button onClick={capture} disabled={!camOk || !!busy} className="h-16 w-16 rounded-full border-4 border-white bg-emerald-600 shadow-lg disabled:opacity-40" aria-label="Capture" />
+          <button onClick={capture} disabled={!camOk || !!busy} className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-white bg-forest text-white shadow-lg disabled:opacity-40" aria-label="Capture"><Camera size={28} /></button>
         ) : (
-          <button onClick={() => { setFrame(null); setResult(null); setTt(null); }} className="rounded-xl bg-neutral-900 px-5 py-3 font-semibold text-white dark:bg-white dark:text-black">↺ New look</button>
+          <button onClick={() => { setFrame(null); setResult(null); setTt(null); }} className="btn btn-primary"><RotateCcw size={18} /> New look</button>
         )}
-        <label className="cursor-pointer rounded-xl border border-neutral-300 px-4 py-3 text-sm dark:border-neutral-700">
-          📁 Photo
+        <label className="btn btn-ghost cursor-pointer">
+          <ImageIcon size={18} /> Photo
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
       </div>
 
-      {err && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</p>}
+      {err && <p className="rounded-2xl bg-red-50 p-3 text-sm text-danger">{err}</p>}
 
       {result && (
-        <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-neutral-900">
+        <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="card space-y-3 p-4">
           {result.found && result.species_id ? (
             <>
               <div className="flex items-baseline justify-between">
-                <h2 className="text-xl font-bold">{result.species_name}</h2>
-                <span className="text-xs italic text-neutral-500">{result.scientific_name}</span>
+                <h2 className="text-2xl font-black">{result.species_name}</h2>
+                <span className="text-xs italic text-muted">{result.scientific_name}</span>
               </div>
-              <p className="text-base leading-relaxed">{result.narration}</p>
-              <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">💡 {result.fun_fact}</p>
-              <div className="flex items-center justify-between text-xs text-neutral-500">
-                {result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="underline">Source: park page</a>}
-                <button onClick={() => speak(`${result.narration} ${result.fun_fact}`, result.language)} className="underline">🔊 read again</button>
+              <p className="text-[17px] leading-relaxed">{result.narration}</p>
+              <p className="flex gap-2 rounded-2xl bg-amber-soft p-3 text-sm text-[#92400e]"><Lightbulb size={18} className="shrink-0" /> {result.fun_fact}</p>
+              <div className="flex items-center justify-between text-xs font-bold">
+                {result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-forest">Source: park page <ExternalLink size={12} /></a>}
+                <button onClick={() => speak(`${result.narration} ${result.fun_fact}`, result.language)} className="inline-flex items-center gap-1 text-muted"><Volume2 size={14} /> read again</button>
               </div>
               {tt && (
-                <button onClick={share} className="w-full rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white">⬆️ Share before / after</button>
+                <button onClick={share} className="btn btn-amber w-full"><Share2 size={18} /> Share before / after</button>
               )}
               <div className="grid grid-cols-3 gap-2 pt-1">
-                {MODES.map((m) => (
-                  <button key={m.mode} onClick={() => timeTravel(m.mode)} disabled={!!busy}
-                          className={`rounded-xl border p-2 text-xs ${tt?.mode === m.mode ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30" : "border-neutral-200 dark:border-neutral-700"} disabled:opacity-40`}>
-                    <div className="text-xl">{m.icon}</div>{m.label}
+                {MODES.map(({ mode, label, Icon }) => (
+                  <button key={mode} onClick={() => timeTravel(mode)} disabled={!!busy}
+                          className={`flex flex-col items-center gap-1 rounded-2xl border-2 p-2 text-xs font-bold ${tt?.mode === mode ? "border-forest bg-forest-soft text-forest" : "border-line text-ink"} disabled:opacity-40`}>
+                    <Icon size={22} />{label}
                   </button>
                 ))}
               </div>
@@ -160,11 +172,11 @@ export default function Lens() {
             <>
               <p className="text-sm">{result.narration}</p>
               {result.found && (
-                <p className="text-xs text-neutral-500">ParkLens only tells stories it can back with the park&apos;s own pages, so it won&apos;t guess about this one.</p>
+                <p className="text-xs text-muted">ParkLens only tells stories it can back with the park&apos;s own pages, so it won&apos;t guess about this one.</p>
               )}
             </>
           )}
-        </section>
+        </motion.section>
       )}
     </div>
   );

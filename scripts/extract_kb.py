@@ -44,6 +44,8 @@ def parse(rec, kind):
     geo = re.search(r"mlat=([0-9.]+)&(?:amp;)?mlon=([0-9.]+)", s)
     if geo:
         item["lat"], item["lon"] = float(geo.group(1)), float(geo.group(2))
+    elif item["id"] in HAND_PINS:  # pages without a map link
+        item["lat"], item["lon"] = HAND_PINS[item["id"]]
     h = re.search(r"Längdkrav:\s*([^:]*?\d+\s*cm[^A-ZÅÄÖ]*)", body)
     if h:
         item["height_requirement"] = h.group(1).strip()
@@ -51,6 +53,10 @@ def parse(rec, kind):
         if nums:
             item["min_height_cm"] = min(nums)
     return item
+
+# Places whose page has no map link; pinned by hand next to the ride that serves them.
+HAND_PINS = {"delfin": (58.6614, 16.4467)}  # dolphinarium, by Delfinexpressen
+
 
 def main():
     pages = json.loads((SRC / "pages.json").read_text(encoding="utf8"))

@@ -16,3 +16,4 @@ api/.venv/
 .venv/
 *.tsbuildinfo
 .agent-context/
+api/parklens_api.egg-info/

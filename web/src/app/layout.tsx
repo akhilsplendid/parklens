@@ -6,15 +6,21 @@ export const metadata: Metadata = {
   title: "ParkLens",
   description: "Your family's personal park guide: a day plan that fits your kids, and a camera that tells every animal's story.",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, title: "ParkLens", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  appleWebApp: { capable: true, title: "ParkLens", statusBarStyle: "default" },
 };
-export const viewport: Viewport = { themeColor: "#059669", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#0f5132", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-        <main className="mx-auto max-w-md px-4 pb-24 pt-4">{children}</main>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+      </head>
+      <body className="min-h-full">
+        <main className="mx-auto max-w-md px-4 pb-28 pt-4">{children}</main>
         <Nav />
       </body>
     </html>

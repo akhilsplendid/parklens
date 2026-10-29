@@ -15,7 +15,7 @@ Unofficial prototype; not affiliated with or endorsed by Kolmården.
 
 | Step | Model | Endpoint |
 |---|---|---|
-| Voice onboarding | `muse-voice-transcribe-1.0` | `/v1/asr/transcribe` |
+| Voice onboarding, re-plan by voice | `muse-voice-transcribe-1.0` | `/v1/asr/transcribe` |
 | Party profile, species ID, narration | `muse-spark-1.3` (structured output) | `/v1/chat/completions` |
 | Find the animal in the frame | `sam-3.1` | `/v1/responses` (streamed) |
 | Habitat / ancestor image | `muse-image-1.0` | `/v1/images/edits` |
@@ -51,7 +51,7 @@ python scripts\smoke_test.py         # one real call: lists models, grounded tig
 cd api
 uv venv; .venv\Scripts\activate
 uv pip install -e ".[dev]"
-pytest -q                            # 22 tests, no network needed
+pytest -q                            # 23 tests, no network needed
 uvicorn parklens.main:app --reload   # http://127.0.0.1:8000/docs
 ```
 
@@ -72,6 +72,7 @@ Or with Docker: `docker compose up --build`.
 | `POST /lens/warm` `{party, species_ids}` | pre-generate narration for today's animals |
 | `POST /transcribe` (audio file) | speech → text |
 | `POST /timetravel` (image, mode=wild/ancestor/future, species_id) | AI artistic image |
+| `POST /events` `{name, props}` | anonymous usage counter (local JSONL; no ids, text or images) |
 
 ## Layout
 

@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { Mic } from "lucide-react";
 
 // Hold-to-talk microphone button. Returns a webm/opus blob when released.
 export default function Recorder({ onAudio, disabled }: { onAudio: (b: Blob) => void; disabled?: boolean }) {
@@ -39,13 +40,13 @@ export default function Recorder({ onAudio, disabled }: { onAudio: (b: Blob) => 
         onPointerDown={start}
         onPointerUp={stop}
         onPointerLeave={stop}
-        className={`h-20 w-20 rounded-full text-3xl shadow-lg transition ${rec_ ? "bg-red-500 scale-110" : "bg-emerald-600"} text-white disabled:opacity-40`}
+        className={`flex h-20 w-20 items-center justify-center rounded-full shadow-lg transition ${rec_ ? "scale-110 bg-danger" : "bg-forest"} text-white disabled:opacity-40`}
         aria-label="Hold to talk"
       >
-        🎙️
+        <Mic size={32} />
       </button>
-      <span className="text-xs text-neutral-500">{rec_ ? "Listening… release to send" : "Hold to talk"}</span>
-      {err && <span className="text-xs text-red-600">{err}</span>}
+      <span className="text-xs font-bold text-muted">{rec_ ? "Listening… release to send" : "Hold to talk"}</span>
+      {err && <span className="text-xs text-danger">{err}</span>}
     </div>
   );
 }

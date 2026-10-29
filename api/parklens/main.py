@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -236,3 +238,26 @@ async def time_travel(
         "image_b64": base64.b64encode(out).decode(),
         "mime": "image/jpeg",
     }
+
+
+class Event(BaseModel):
+    """Anonymous product event from the web app (no ids, no text, no images)."""
+
+    name: str  # e.g. plan_made, lens_hit, lens_miss, timetravel, replan, share
+    props: dict[str, str | int | float | bool] = {}
+
+
+@app.post("/events", status_code=204)
+async def log_event(ev: Event, s: Annotated[Settings, Depends(settings)]):
+    """Append one line to a local JSONL file so we can count what judges and testers use.
+    Nothing personal is accepted: only a short event name and flat scalar props."""
+    if len(ev.name) > 40 or len(ev.props) > 12:
+        raise HTTPException(400, "event too large")
+    line = {"t": int(time.time()), "name": ev.name, **{f"p_{k}": v for k, v in ev.props.items()}}
+    try:
+        s.events_path.parent.mkdir(parents=True, exist_ok=True)
+        with s.events_path.open("a", encoding="utf8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:
+        log.warning("could not write event")
+    return None

@@ -63,6 +63,13 @@ async function check<T>(r: Response): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+// Anonymous product events (no ids, no text, no images). Fire-and-forget.
+export function track(name: string, props: Record<string, string | number | boolean> = {}) {
+  try {
+    fetch(`${API}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, props }), keepalive: true }).catch(() => undefined);
+  } catch {}
+}
+
 export const api = {
   items: () => fetch(`${API}/kb/items`).then((r) => check<KbItem[]>(r)),
   map: () => fetch(`${API}/kb/map`).then((r) => check<ParkMap>(r)),

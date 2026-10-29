@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     default_language: str = "en"
     request_timeout_s: float = 90.0
     max_image_side: int = 1280  # downscale camera frames before sending (saves credits)
+    events_path: Path = REPO_ROOT / "data" / "generated" / "events.jsonl"  # anonymous usage log
 
 
 @lru_cache
