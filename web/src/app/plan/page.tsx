@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { PawPrint, FerrisWheel, Coffee, Footprints, Check, Undo2, ExternalLink, RefreshCw } from "lucide-react";
 import Recorder from "@/components/Recorder";
 import Art from "@/components/Art";
-import { api, errMsg, nowHHMM, track, saveStored, speak, useStored, type Plan } from "@/lib/api";
+import { api, clock as readClock, errMsg, nowHHMM, track, saveStored, speak, unlockSpeech, useStored, type Plan } from "@/lib/api";
 import { Clock } from "lucide-react";
 
 const ICON = { animal: PawPrint, attraction: FerrisWheel, break: Coffee } as const;
@@ -18,6 +18,7 @@ export default function PlanPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const clock = useStored<string>("clock");
+  const here = useStored<string>("here");
   // Demo clock: re-planning uses "now"; tap the time to pretend it's later in the day.
   function bumpClock() {
     const order = [null, "13:00", "15:00", "17:00"];
@@ -31,9 +32,9 @@ export default function PlanPage() {
 
   async function replan(text: string) {
     if (!plan || !text.trim()) return;
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); unlockSpeech();
     try {
-      const fresh = await api.replan(plan, text, nowHHMM(), done);
+      const fresh = await api.replan(plan, text, nowHHMM(), done, here);
       track("replan", { stops: fresh.stops.length });
       saveStored("plan", fresh); saveStored("done", []);
       void api.warm(fresh.party, fresh.stops.filter((s) => s.kind === "animal").map((s) => s.item_id));
@@ -67,7 +68,7 @@ export default function PlanPage() {
           const isDone = done.includes(s.item_id);
           return (
             <motion.li key={`${s.item_id}-${i}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }}
-              className={`relative flex gap-3 ${isDone ? "opacity-45" : ""}`}>
+              className={`relative flex gap-3 ${isDone ? "opacity-45" : ""}`} onClick={() => s.kind !== "break" && toggleDone(s.item_id)}>
               <div className="w-11 shrink-0 pt-3 text-right font-mono text-xs text-muted">{s.start}</div>
               <div className={`z-10 mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${TONE[s.kind]}`}><Icon size={16} /></div>
               <div className="card flex-1 p-3">
@@ -78,8 +79,8 @@ export default function PlanPage() {
                 {s.why && <p className="mt-1 text-sm leading-relaxed">{s.why}</p>}
                 {s.kind !== "break" && (
                   <div className="mt-2 flex gap-3 text-xs font-bold">
-                    {s.source_url && <a href={s.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-forest">source <ExternalLink size={12} /></a>}
-                    <button onClick={() => toggleDone(s.item_id)} className="inline-flex items-center gap-1 text-muted">{isDone ? <><Undo2 size={12} /> undo</> : <><Check size={12} /> done</>}</button>
+                    {s.source_url && <a href={s.source_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="-my-2 inline-flex min-h-11 items-center gap-1 px-1 text-forest">source <ExternalLink size={12} /></a>}
+                    <button onClick={(e) => { e.stopPropagation(); toggleDone(s.item_id); }} className="-my-2 inline-flex min-h-11 items-center gap-1 px-2 text-muted">{isDone ? <><Undo2 size={14} /> undo</> : <><Check size={14} /> done</>}</button>
                   </div>
                 )}
               </div>
@@ -118,8 +119,8 @@ export default function PlanPage() {
           ))}
         </div>
         {err && <p className="text-sm text-danger">{err}</p>}
-        <button onClick={bumpClock} className="flex items-center gap-1 text-xs text-muted" title="Demo clock: tap to pretend it's later">
-          <Clock className="h-3.5 w-3.5" /> It&apos;s {nowHHMM()}{clock ? " (demo clock)" : ""}
+        <button onClick={bumpClock} className="-my-2 flex min-h-11 items-center gap-1 text-xs text-muted" title="Demo clock: tap to pretend it's later">
+          <Clock className="h-3.5 w-3.5" /> It&apos;s {readClock().time}{readClock().demo ? " (demo clock, tap to change)" : " (tap to pretend it's later)"}
         </button>
       </section>
     </div>

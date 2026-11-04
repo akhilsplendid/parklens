@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import Art from "@/components/Art";
-import { api, saveStored, track } from "@/lib/api";
+import { api, errMsg, saveStored, track } from "@/lib/api";
 
 const SLIDES = [
   { art: "welcome-family", title: "Tell me who's coming", text: "Say it or type it: ages, heights, what the kids love, how long you have." },
   { art: "welcome-plan", title: "Get a day that fits", text: "Rides your kids are tall enough for, breaks before meltdowns, and a route that saves little legs." },
-  { art: "welcome-lens", title: "Point at any animal", text: "ParkLens finds it, tells its story in your language, and shows it in the wild or a million years ago." },
+  { art: "welcome-lens", title: "Point at an animal", text: "ParkLens finds it, tells its story from the park's own facts in your language, and shows it in the wild or a million years ago." },
 ];
 
 const DEMO_FAMILY = "Two adults, Mia is 5 and 110 cm, Leo is 9 and 135 cm. We love big cats and dolphins, we have five hours.";
@@ -18,10 +18,11 @@ export default function Welcome() {
   const router = useRouter();
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const last = i === SLIDES.length - 1;
 
   async function demo() {
-    setBusy(true);
+    setBusy(true); setErr(null);
     try {
       const party = await api.onboardText(DEMO_FAMILY);
       saveStored("party", party);
@@ -32,13 +33,14 @@ export default function Welcome() {
       void api.warm(party, plan.stops.filter((s) => s.kind === "animal").map((s) => s.item_id));
       saveStored("welcomed", true);
       router.push("/plan");
-    } catch {
+    } catch (e) {
+      setErr(errMsg(e));
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex min-h-[85vh] flex-col justify-between py-2">
+    <div className="flex min-h-[calc(100dvh-2rem)] flex-col justify-between py-2">
       <div className="flex items-center gap-2 text-forest">
         <Art name="icon" alt="" className="h-9 w-9 rounded-xl" />
         <span className="text-xl font-black">ParkLens</span>
@@ -60,6 +62,7 @@ export default function Welcome() {
           <>
             <button onClick={() => { saveStored("welcomed", true); router.push("/"); }} className="btn btn-primary w-full">Set up my family <ArrowRight size={20} /></button>
             <button onClick={demo} disabled={busy} className="btn btn-ghost w-full"><Sparkles size={18} /> {busy ? "Planning the demo day…" : "Try with a demo family"}</button>
+            {err && <p className="text-center text-sm text-danger">{err}</p>}
           </>
         ) : (
           <button onClick={() => setI(i + 1)} className="btn btn-primary w-full">Next <ArrowRight size={20} /></button>

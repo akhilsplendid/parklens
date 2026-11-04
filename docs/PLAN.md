@@ -1,5 +1,10 @@
 # ParkLens: plan
 
+> Written on day 1 (Oct 27). Kept as the original plan. What actually shipped is in
+> README.md and docs/STATUS.md: four Meta models (Spark, SAM 3.1, Muse Image, Voice
+> Transcribe), a deterministic planner in code instead of a Wonder tool-calling agent, an
+> in-memory cache instead of Postgres/Redis, no video segmentation, journal or tracing.
+
 Track: Indie developer. Theme: Build for Your World.
 Deadline: Wed Nov 4, 21:00 ET (Thu Nov 5, 03:00 Stockholm). Aim to submit Nov 4 evening CET.
 

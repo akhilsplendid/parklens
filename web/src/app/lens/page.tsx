@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Camera, Image as ImageIcon, RotateCcw, Share2, Volume2, ExternalLink, Globe2, Mountain, Sprout, Lightbulb } from "lucide-react";
-import { api, errMsg, shareCard, track, speak, useStored, type LensResult, type Party } from "@/lib/api";
+import { api, errMsg, shareCard, track, speak, stopSpeaking, unlockSpeech, useStored, type LensResult, type Party } from "@/lib/api";
 
 type TT = { mode: "wild" | "ancestor" | "future"; url: string; label: string };
 const MODES: { mode: TT["mode"]; label: string; Icon: typeof Globe2 }[] = [
@@ -13,9 +13,11 @@ const MODES: { mode: TT["mode"]; label: string; Icon: typeof Globe2 }[] = [
 
 export default function Lens() {
   const video = useRef<HTMLVideoElement>(null);
+  const stream = useRef<MediaStream | null>(null);
   const party = useStored<Party>("party");
   const here = useStored<string>("here");
   const [camOk, setCamOk] = useState<boolean | null>(null);
+  const [camErr, setCamErr] = useState<string>("");
   const [frame, setFrame] = useState<{ blob: Blob; url: string; w: number; h: number } | null>(null);
   const [result, setResult] = useState<LensResult | null>(null);
   const [tt, setTt] = useState<TT | null>(null);
@@ -24,29 +26,52 @@ export default function Lens() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    let stream: MediaStream | undefined;
-    navigator.mediaDevices
-      ?.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }, audio: false })
-      .then((s) => { stream = s; if (video.current) { video.current.srcObject = s; } setCamOk(true); })
-      .catch(() => setCamOk(false));
-    return () => stream?.getTracks().forEach((t) => t.stop());
+    const fail = (msg: string) => { setCamOk(false); setCamErr(msg); };
+    const open = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        fail(window.isSecureContext ? "No camera on this device. Use Photo." : "Camera needs HTTPS. Use Photo."); return;
+      }
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }, audio: false });
+        stream.current = s; if (video.current) video.current.srcObject = s; setCamOk(true);
+      } catch (e) {
+        fail((e as DOMException)?.name === "NotAllowedError" ? "Camera permission denied. Allow it in your browser settings, or use Photo." : "Camera unavailable. Use Photo.");
+      }
+    };
+    void open();
+    return () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; stopSpeaking(); };
   }, []);
 
+  // The <video> is unmounted while a frame is shown; re-attach the live stream on "New look".
+  useEffect(() => {
+    if (!frame && video.current && stream.current && video.current.srcObject !== stream.current) video.current.srcObject = stream.current;
+  }, [frame]);
+
   function capture() {
+    unlockSpeech();
     const v = video.current;
-    if (!v || !v.videoWidth) return;
+    if (!v || !v.videoWidth) { setErr("Camera is still starting. Try again in a second."); return; }
     const c = document.createElement("canvas");
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext("2d")!.drawImage(v, 0, 0);
     c.toBlob((b) => b && analyze(b, c.width, c.height), "image/jpeg", 0.9);
   }
 
-  function onFile(f: File | undefined) {
+  // Gallery photo: honour EXIF rotation and shrink a 12 MP shot before upload (cellular!).
+  async function onFile(f: File | undefined) {
     if (!f) return;
-    const url = URL.createObjectURL(f);
-    const img = new Image();
-    img.onload = () => analyze(f, img.naturalWidth, img.naturalHeight, url);
-    img.src = url;
+    unlockSpeech();
+    try {
+      const bmp = await createImageBitmap(f, { imageOrientation: "from-image" });
+      const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+      bmp.close?.();
+      c.toBlob((b) => b && analyze(b, c.width, c.height), "image/jpeg", 0.9);
+    } catch {
+      setErr("Couldn't read that image. Try a JPEG or PNG.");
+    }
   }
 
   async function analyze(blob: Blob, w: number, h: number, url = URL.createObjectURL(blob)) {
@@ -66,7 +91,7 @@ export default function Lens() {
     if (!frame) return;
     setBusy("Painting…"); setErr(null);
     try {
-      const r = await api.timeTravel(frame.blob, mode, result?.species_id);
+      const r = await api.timeTravel(frame.blob, mode, result?.species_id, result?.box);
       track("timetravel", { mode });
       setTt({ mode, url: `data:${r.mime};base64,${r.image_b64}`, label: r.label });
       setSlider(50);
@@ -77,13 +102,19 @@ export default function Lens() {
     if (!frame || !tt || !result) return;
     const label = MODES.find((m) => m.mode === tt.mode)?.label ?? tt.mode;
     track("share", { mode: tt.mode });
-    const png = await shareCard(frame.url, tt.url, `${result.species_name} · ${label}`, label);
-    const file = new File([png], "parklens.png", { type: "image/png" });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: "ParkLens", text: `${result.species_name}, ${label}. #ParkLens #MetaHackathon` }).catch(() => {});
-    } else {
-      const a = document.createElement("a"); a.href = URL.createObjectURL(png); a.download = "parklens.png"; a.click();
-    }
+    setBusy("Making card…"); setErr(null);
+    const download = (png: Blob) => { const a = document.createElement("a"); a.href = URL.createObjectURL(png); a.download = "parklens.png"; a.click(); };
+    try {
+      const png = await shareCard(frame.url, tt.url, `${result.species_name} · ${label}`, label);
+      const file = new File([png], "parklens.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "ParkLens", text: `${result.species_name}, ${label}. #ParkLens #MetaHackathon` });
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") download(png); // share sheet refused → save the card
+        }
+      } else download(png);
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(null); }
   }
 
   // Box overlay in percent of the frame (SAM reports coords on the downscaled frame).
@@ -116,7 +147,7 @@ export default function Lens() {
         {box && !tt && (
           <motion.div initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 20 }}
             className="absolute rounded-xl border-[3px] border-emerald-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" style={box}>
-            <span className="absolute -top-7 left-0 rounded-lg bg-emerald-500 px-2 py-0.5 text-xs font-extrabold text-white">{result?.species_name}</span>
+            <span className={`absolute left-0 rounded-lg bg-emerald-500 px-2 py-0.5 text-xs font-extrabold text-white ${result && result.box && result.box.y1 / result.box.h < 0.1 ? "top-1 left-1" : "-top-7"}`}>{result?.species_name}</span>
           </motion.div>
         )}
         {busy && (
@@ -125,18 +156,19 @@ export default function Lens() {
             <div className="absolute inset-x-0 bottom-3 text-center text-sm font-extrabold text-white drop-shadow">{busy}</div>
           </div>
         )}
-        {camOk === false && !frame && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-white">Camera unavailable (needs HTTPS). Use the photo button below.</div>}
+        {camOk === false && !frame && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-white">{camErr}</div>}
+        {camOk === null && !frame && !busy && <div className="absolute inset-x-0 bottom-3 text-center text-xs text-white/80">Starting camera…</div>}
       </div>
 
       <div className="flex items-center justify-center gap-4">
         {!frame ? (
           <button onClick={capture} disabled={!camOk || !!busy} className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-white bg-forest text-white shadow-lg disabled:opacity-40" aria-label="Capture"><Camera size={28} /></button>
         ) : (
-          <button onClick={() => { setFrame(null); setResult(null); setTt(null); }} className="btn btn-primary"><RotateCcw size={18} /> New look</button>
+          <button onClick={() => { stopSpeaking(); setFrame(null); setResult(null); setTt(null); setErr(null); }} className="btn btn-primary"><RotateCcw size={18} /> New look</button>
         )}
         <label className="btn btn-ghost cursor-pointer">
           <ImageIcon size={18} /> Photo
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
       </div>
 
@@ -153,8 +185,8 @@ export default function Lens() {
               <p className="text-[17px] leading-relaxed">{result.narration}</p>
               <p className="flex gap-2 rounded-2xl bg-amber-soft p-3 text-sm text-[#92400e]"><Lightbulb size={18} className="shrink-0" /> {result.fun_fact}</p>
               <div className="flex items-center justify-between text-xs font-bold">
-                {result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-forest">Source: park page <ExternalLink size={12} /></a>}
-                <button onClick={() => speak(`${result.narration} ${result.fun_fact}`, result.language)} className="inline-flex items-center gap-1 text-muted"><Volume2 size={14} /> read again</button>
+                {result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="-my-2 inline-flex min-h-11 items-center gap-1 text-forest">Source: park page <ExternalLink size={12} /></a>}
+                <button onClick={() => speak(`${result.narration} ${result.fun_fact}`, result.language)} className="-my-2 inline-flex min-h-11 items-center gap-1 px-2 text-muted"><Volume2 size={16} /> read again</button>
               </div>
               {tt && (
                 <button onClick={share} className="btn btn-amber w-full"><Share2 size={18} /> Share before / after</button>

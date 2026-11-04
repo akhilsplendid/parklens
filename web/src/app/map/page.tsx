@@ -25,7 +25,7 @@ export default function MapPage() {
     );
   if (!map?.bounds) return <p className="text-muted">Loading map…</p>;
 
-  const W = 1000, H = 420, pad = 40;
+  const W = 1000, H = 520, pad = 60;
   const b = map.bounds;
   const x = (lon: number) => pad + ((lon - b.min_lon) / (b.max_lon - b.min_lon)) * (W - 2 * pad);
   const y = (lat: number) => pad + ((b.max_lat - lat) / (b.max_lat - b.min_lat)) * (H - 2 * pad);
@@ -58,25 +58,29 @@ export default function MapPage() {
           )}
           {/* all places */}
           {located.map((i) => (
-            <g key={i.id} onClick={() => saveStored("here", i.id)} className="cursor-pointer">
-              <circle cx={x(i.lon!)} cy={y(i.lat!)} r={routeIds.has(i.id) ? 11 : 7}
+            <g key={i.id} onClick={() => saveStored("here", here === i.id ? "" : i.id)} className="cursor-pointer" role="button" aria-label={i.name}>
+              <circle cx={x(i.lon!)} cy={y(i.lat!)} r={30} fill="transparent" /> {/* finger-sized hit area */}
+              <circle cx={x(i.lon!)} cy={y(i.lat!)} r={routeIds.has(i.id) ? 16 : 9}
                       fill={i.kind === "attraction" ? "#f59e0b" : "#60a5fa"} fillOpacity={routeIds.has(i.id) ? 1 : 0.45}
                       stroke={here === i.id ? "#fff" : "none"} strokeWidth="3" />
+              {(routeIds.has(i.id) || here === i.id) && (
+                <text x={x(i.lon!)} y={y(i.lat!) + 34} textAnchor="middle" fontSize="20" fontWeight="700" fill="#d1fae5" stroke="#0f2a1c" strokeWidth="4" paintOrder="stroke">{i.name}</text>
+              )}
               <title>{i.name}</title>
             </g>
           ))}
           {/* route numbers */}
           {route.map((s, n) => (
-            <text key={`${s.item_id}-n`} x={x(s.lon!)} y={y(s.lat!) + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#052e16">{n + 1}</text>
+            <text key={`${s.item_id}-n`} x={x(s.lon!)} y={y(s.lat!) + 6} textAnchor="middle" fontSize="18" fontWeight="800" fill="#052e16">{n + 1}</text>
           ))}
           {/* entrance */}
           <g>
-            <rect x={x(map.entrance.lon) - 9} y={y(map.entrance.lat) - 9} width="18" height="18" rx="3" fill="#fff" />
-            <text x={x(map.entrance.lon)} y={y(map.entrance.lat) + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#052e16">E</text>
+            <rect x={x(map.entrance.lon) - 13} y={y(map.entrance.lat) - 13} width="26" height="26" rx="5" fill="#fff" />
+            <text x={x(map.entrance.lon)} y={y(map.entrance.lat) + 6} textAnchor="middle" fontSize="18" fontWeight="800" fill="#052e16">E</text>
           </g>
           {/* here */}
           {hereItem && (
-            <text x={x(hereItem.lon!)} y={y(hereItem.lat!) - 16} textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff">📍 you</text>
+            <text x={x(hereItem.lon!)} y={y(hereItem.lat!) - 24} textAnchor="middle" fontSize="22" fontWeight="800" fill="#fff" stroke="#0f2a1c" strokeWidth="4" paintOrder="stroke">📍 you</text>
           )}
         </svg>
       </div>
@@ -104,8 +108,8 @@ export default function MapPage() {
       )}
 
       <p className="text-xs text-muted">
-        Tap a place to mark where you are (demo mode). The Lens then uses that as a hint.
-        {here && <button onClick={() => saveStored("here", "")} className="ml-2 underline">clear</button>}
+        Tap a place to mark where you are (demo mode). The Lens uses it as a hint and re-planning starts from there.
+        {here && <button onClick={() => saveStored("here", "")} className="-my-2 ml-2 min-h-11 px-2 underline">clear</button>}
       </p>
     </div>
   );

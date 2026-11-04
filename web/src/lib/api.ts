@@ -77,6 +77,12 @@ export function track(name: string, props: Record<string, string | number | bool
   } catch {}
 }
 
+// iOS records audio/mp4; Chrome audio/webm. The API reads the container from the name + type.
+function audioName(b: Blob) {
+  const t = (b.type || "audio/webm").split(";")[0];
+  return `voice.${t.includes("mp4") ? "m4a" : t.includes("ogg") ? "ogg" : "webm"}`;
+}
+
 export const api = {
   items: () => fetch(`${API}/kb/items`).then((r) => check<KbItem[]>(r)),
   map: () => fetch(`${API}/kb/map`).then((r) => check<ParkMap>(r)),
@@ -84,20 +90,20 @@ export const api = {
     fetch(`${API}/onboard/text`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }).then((r) => check<Party>(r)),
   onboardVoice: (audio: Blob) => {
     const fd = new FormData();
-    fd.append("audio", audio, "voice.webm");
+    fd.append("audio", audio, audioName(audio));
     return fetch(`${API}/onboard/voice`, { method: "POST", body: fd }).then((r) => check<{ transcript: string; party: Party }>(r));
   },
   transcribe: (audio: Blob) => {
     const fd = new FormData();
-    fd.append("audio", audio, "voice.webm");
+    fd.append("audio", audio, audioName(audio));
     return fetch(`${API}/transcribe`, { method: "POST", body: fd }).then((r) => check<{ text: string }>(r));
   },
   plan: (party: Party) =>
     fetch(`${API}/plan`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(party) }).then((r) => check<Plan>(r)),
   warm: (party: Party, species_ids: string[]) =>
     fetch(`${API}/lens/warm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ party, species_ids }) }).catch(() => undefined),
-  replan: (plan: Plan, utterance: string, now: string, done_ids: string[]) =>
-    fetch(`${API}/plan/replan`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan, utterance, now, done_ids }) }).then((r) => check<Plan>(r)),
+  replan: (plan: Plan, utterance: string, now: string, done_ids: string[], here_id?: string | null) =>
+    fetch(`${API}/plan/replan`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan, utterance, now, done_ids, here_id: here_id || null }) }).then((r) => check<Plan>(r)),
   lens: (image: Blob, party?: Party | null, hint?: string, expected?: string | null) => {
     const fd = new FormData();
     fd.append("image", image, "frame.jpg");
@@ -106,11 +112,12 @@ export const api = {
     if (expected) fd.append("expected", expected);
     return fetch(`${API}/lens`, { method: "POST", body: fd }).then((r) => check<LensResult>(r));
   },
-  timeTravel: (image: Blob, mode: "wild" | "ancestor" | "future", species_id?: string | null) => {
+  timeTravel: (image: Blob, mode: "wild" | "ancestor" | "future", species_id?: string | null, box?: LensResult["box"]) => {
     const fd = new FormData();
     fd.append("image", image, "frame.jpg");
     fd.append("mode", mode);
     if (species_id) fd.append("species_id", species_id);
+    if (box) fd.append("box", JSON.stringify(box)); // the SAM box is what Muse Image repaints
     return fetch(`${API}/timetravel`, { method: "POST", body: fd }).then((r) => check<{ image_b64: string; mime: string; label: string }>(r));
   },
 };
@@ -134,14 +141,31 @@ export function save(key: string, value: unknown) {
 // "Now" for re-planning. Outside park hours (demos at midnight!) we pretend it's 13:00 so the
 // new plan still reads like a day at the park. Override with localStorage parklens:clock=HH:MM.
 export function nowHHMM() {
+  return clock().time;
+}
+// `demo` is true whenever the time shown is not the real one (forced, or outside park hours).
+export function clock(): { time: string; demo: boolean } {
   const forced = load<string>("clock");
-  if (forced) return forced;
+  if (forced) return { time: forced, demo: true };
   const d = new Date();
   const h = d.getHours();
-  if (h < 9 || h > 18) return "13:00";
-  return `${String(h).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (h < 9 || h > 18) return { time: "13:00", demo: true };
+  return { time: `${String(h).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`, demo: false };
 }
 
+// iOS only speaks inside a user gesture; speaking an empty utterance on tap unlocks it for the
+// answer that arrives seconds later.
+let speechUnlocked = false;
+export function unlockSpeech() {
+  if (speechUnlocked || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    speechUnlocked = true;
+  } catch {}
+}
+export function stopSpeaking() {
+  try { window.speechSynthesis?.cancel(); } catch {}
+}
 export function speak(text: string, lang: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
