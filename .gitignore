@@ -21,3 +21,4 @@ api/parklens_api.egg-info/
 .pytest_cache/
 docs/assets/
 *.tgz
+push.cmd
