@@ -1,4 +1,18 @@
-# Status (Oct 29, afternoon)
+# Status (Nov 4, morning — deadline 03:00 Stockholm time tonight)
+
+## Review round (three critic passes + one verification pass, all fixed and committed)
+- API: per-IP rate limit (20/min, 400/day) on billed routes, upload caps, EXIF rotation,
+  decompression-bomb cap, 415/422/429/503 instead of 500s, one retry on 429/5xx, re-plan
+  re-validates model output and has a keyword fallback, `here_id` + `prefer` (rides/animals)
+  so every re-plan chip does something, time travel repaints the SAM box, misses cached,
+  warm capped, `data/kb.sample.json` so a fresh clone boots. 28 tests.
+- Web: iOS voice (mp4 recorder) and speech unlock, second camera capture works, gallery
+  photos rotated + shrunk on the phone, share feedback, touch targets, map labels, demo
+  clock always labelled, error boundary, PNG home-screen icons.
+- Docs: four models (not five), PLAN.md marked as the day-1 plan, sign statistic sourced
+  (Spooner et al. 2024), README explains computed vs generated and why the Lens is not RAG.
+
+## Previous status (Oct 29)
 
 ## Done and verified against the real Meta API
 - Voice/text onboarding → family profile (structured output)
