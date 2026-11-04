@@ -47,16 +47,44 @@ class HttpMetaClient:
         await self._http.aclose()
 
     async def _post(self, path: str, body: dict, **kw: Any) -> Any:
-        r = await self._http.post(path, json=body, **kw)
-        if r.status_code >= 400:
-            raise MetaAPIError(r.status_code, r.text[:500])
-        return r.json()
+        """POST with one retry on 429/5xx/transport errors (judges share one key for a week)."""
+        import asyncio
+        import random
+
+        import httpx
+
+        for attempt in (0, 1):
+            try:
+                r = await self._http.post(path, json=body, **kw)
+            except httpx.HTTPError as e:
+                if attempt == 0:
+                    await asyncio.sleep(1 + random.random())
+                    continue
+                raise MetaAPIError(504, f"{type(e).__name__}: {e}") from e
+            if r.status_code in (429, 500, 502, 503, 504) and attempt == 0:
+                await asyncio.sleep(1.5 + random.random())
+                continue
+            if r.status_code >= 400:
+                raise MetaAPIError(r.status_code, r.text[:500])
+            return r.json()
+        raise MetaAPIError(504, "unreachable")  # pragma: no cover
+
+    @staticmethod
+    def _content(data: dict) -> str:
+        """The assistant text, or a MetaAPIError if the model refused / returned nothing."""
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            raise MetaAPIError(502, "no content in reply") from e
+        if not content:
+            raise MetaAPIError(502, "empty reply (refusal?)")
+        return content
 
     async def chat_text(self, messages: list[dict], *, model: str | None = None) -> str:
         data = await self._post(
             "/chat/completions", {"model": model or self.s.fast_model, "messages": messages}
         )
-        return data["choices"][0]["message"]["content"]
+        return self._content(data)
 
     async def chat_json(
         self, messages: list[dict], schema: dict, *, name: str = "Result", model: str | None = None
@@ -72,7 +100,13 @@ class HttpMetaClient:
                 },
             },
         )
-        return json.loads(data["choices"][0]["message"]["content"])
+        txt = self._content(data).strip()
+        if txt.startswith("```"):  # some replies fence the JSON despite json_schema mode
+            txt = txt.strip("`").removeprefix("json").strip()
+        try:
+            return json.loads(txt)
+        except json.JSONDecodeError as e:
+            raise MetaAPIError(502, f"non-JSON reply: {txt[:120]}") from e
 
     async def sam_segment(self, image: bytes, prompt: str, *, mime: str = "image/jpeg") -> str:
         """Returns SAM 3.1's raw special-token output text (boxes + masks)."""
@@ -91,19 +125,28 @@ class HttpMetaClient:
                 }
             ],
         }
+        import httpx
+
         chunks: list[str] = []
-        async with self._http.stream("POST", "/responses", json=body) as r:
-            if r.status_code >= 400:
-                raise MetaAPIError(r.status_code, (await r.aread())[:500].decode(errors="ignore"))
-            async for line in r.aiter_lines():
-                if not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if payload in ("", "[DONE]"):
-                    continue
-                event = json.loads(payload)
-                if event.get("type") == "response.output_text.delta":
-                    chunks.append(event.get("delta", ""))
+        try:
+            async with self._http.stream("POST", "/responses", json=body) as r:
+                if r.status_code >= 400:
+                    detail = (await r.aread())[:500].decode(errors="ignore")
+                    raise MetaAPIError(r.status_code, detail)
+                async for line in r.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload in ("", "[DONE]"):
+                        continue
+                    try:
+                        event = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    if event.get("type") == "response.output_text.delta":
+                        chunks.append(event.get("delta", ""))
+        except httpx.HTTPError as e:
+            raise MetaAPIError(504, f"{type(e).__name__}: {e}") from e
         return "".join(chunks)
 
     async def image_edit(self, image: bytes, prompt: str, *, mime: str = "image/jpeg") -> bytes:
@@ -121,12 +164,20 @@ class HttpMetaClient:
         return base64.b64decode(data["data"][0]["b64_json"])
 
     async def transcribe(self, audio: bytes, *, mime: str = "audio/webm") -> str:
-        ext = mime.split("/")[-1]
-        r = await self._http.post(
-            "/asr/transcribe",
-            data={"model": self.s.asr_model},
-            files={"file": (f"audio.{ext}", audio, mime)},
+        import httpx
+
+        base = mime.split(";")[0].strip()  # "audio/webm;codecs=opus" -> "audio/webm"
+        ext = {"audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/x-m4a": "m4a"}.get(
+            base, base.split("/")[-1] or "webm"
         )
+        try:
+            r = await self._http.post(
+                "/asr/transcribe",
+                data={"model": self.s.asr_model},
+                files={"file": (f"audio.{ext}", audio, base)},
+            )
+        except httpx.HTTPError as e:
+            raise MetaAPIError(504, f"{type(e).__name__}: {e}") from e
         if r.status_code >= 400:
             raise MetaAPIError(r.status_code, r.text[:500])
         data = r.json()

@@ -90,3 +90,39 @@ def test_narration_failure_keeps_plan(kb):
     plan = planner.build_plan(kb, Party(hours_available=1))
     out = asyncio.run(planner.narrate_plan(plan, kb, FakeClient({})))  # no canned answer → raises
     assert out.stops and out.summary == ""
+
+
+def test_replan_prefers_rides_and_starts_from_here(kb):
+    from parklens.schemas import Party
+    from parklens.services.planner import build_plan, replan
+
+    party = Party(
+        adults=1, children=[{"name": "Leo", "age": 9, "height_cm": 135}], hours_available=4
+    )
+    plan = build_plan(kb, party, (0.0, 0.0))
+    rides = replan(kb, plan, "13:00", [], 2, prefer="rides")
+    kinds = [s.kind for s in rides.stops if s.kind != "break"]
+    assert kinds and kinds[0] == "attraction"  # "Kids want more rides" is honoured
+    assert rides.party.start_time == "13:00" and rides.party.hours_available == 2
+    # A bad extraction can't crash the re-plan: pace falls back, hours are bounded.
+    safe = replan(kb, plan, "13:00", [], 99, pace="tired")
+    assert (
+        safe.party.pace == plan.party.pace
+        and safe.party.hours_available == plan.party.hours_available
+    )
+
+
+def test_sample_kb_loads_and_plans():
+    from pathlib import Path
+
+    from parklens.kb import KnowledgeBase
+    from parklens.schemas import Party
+    from parklens.services.planner import build_plan
+
+    sample = Path(__file__).resolve().parents[2] / "data" / "kb.sample.json"
+    kb = KnowledgeBase.load(sample)
+    assert len(kb.animals) >= 8 and len(kb.attractions) >= 4
+    plan = build_plan(
+        kb, Party(children=[{"name": "Mia", "age": 5, "height_cm": 110}]), (58.6619, 16.4462)
+    )
+    assert {s.item_id for s in plan.skipped} >= {"wildfire", "sjorovarskeppet"}

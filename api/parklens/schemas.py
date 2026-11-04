@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+
 
 class Child(BaseModel):
     name: str = "child"
@@ -20,7 +22,7 @@ class Party(BaseModel):
     hours_available: float = Field(default=6, gt=0, le=14)
     language: str = Field(default="en", description="BCP-47-ish: en, sv, fi, de ...")
     pace: Literal["relaxed", "normal", "packed"] = "normal"
-    start_time: str = Field(default="10:00", pattern=r"^\d{2}:\d{2}$")
+    start_time: str = Field(default="10:00", pattern=HHMM)
 
     @property
     def youngest_age(self) -> int | None:
@@ -107,5 +109,6 @@ class LensResult(BaseModel):
 class ReplanRequest(BaseModel):
     plan: Plan
     utterance: str = Field(description="What the family said, e.g. 'we are tired, one hour left'")
-    now: str = Field(default="13:00", pattern=r"^\d{2}:\d{2}$")
+    now: str = Field(default="13:00", pattern=HHMM)
     done_ids: list[str] = Field(default_factory=list)
+    here_id: str | None = Field(default=None, description="item the family is standing at")

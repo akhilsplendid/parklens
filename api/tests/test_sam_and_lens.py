@@ -110,3 +110,48 @@ def test_warm_prefills_narration_cache(kb):
     r = asyncio.run(svc.analyze(_jpeg()))
     assert r.narration == "Hello tiger."
     assert sum(1 for c in fake.calls if c[0] == "Narration") == before
+
+
+def test_open_handles_exif_rotation_and_garbage():
+    import io
+
+    import pytest
+    from PIL import Image
+
+    from parklens import sam
+
+    im = Image.new("RGB", (400, 200), "red")
+    buf = io.BytesIO()
+    exif = Image.Exif()
+    exif[0x0112] = 6  # orientation: rotate 90° on display, as phones do for portrait shots
+    im.save(buf, "JPEG", exif=exif)
+    out, _ = sam.downscale(buf.getvalue(), 1280)
+    assert Image.open(io.BytesIO(out)).size == (200, 400)
+    with pytest.raises(sam.BadImage):
+        sam.downscale(b"not an image", 1280)
+
+
+def test_lens_caches_misses_and_warm_dedupes(kb):
+    import asyncio
+
+    from parklens.config import Settings
+    from parklens.services.lens import LensService
+    from tests.conftest import FakeClient
+
+    fake = FakeClient(
+        {"SpeciesId": {"species_id": "none", "confidence": 0.1, "what_i_see": "grass"}}, sam_raw=""
+    )
+    svc = LensService(kb, fake, Settings(model_api_key="x"))
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), "green").save(buf, "JPEG")
+    r1 = asyncio.run(svc.analyze(buf.getvalue()))
+    r2 = asyncio.run(svc.analyze(buf.getvalue()))
+    assert not r1.found and r2.cached
+    before = len(fake.calls)
+    fake.answers["Narration"] = {"narration": "x", "fun_fact": "y"}
+    n = asyncio.run(svc.warm(None, ["tiger"] * 50 + ["nope"]))
+    assert n == 1 and len(fake.calls) == before + 1

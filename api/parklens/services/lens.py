@@ -1,5 +1,6 @@
-"""The Lens: camera frame → SAM 3.1 box → crop → Muse Spark identifies against the park's
-species list → narration from the park's own text, with a source link.
+"""The Lens: camera frame → SAM 3.1 (box: is there an animal, where) in parallel with
+Muse Spark (which of the park's listed species) → narration from the park's own text, with a
+source link. The SAM box is drawn on the phone and is what Muse Image repaints in time travel.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from ..meta_client import MetaClient, data_url
 from ..schemas import LensResult, Party
 
 log = logging.getLogger(__name__)
+
+MAX_WARM = 12  # a day plan has ~8 animals; anything more is someone probing the endpoint
 
 ID_SCHEMA = {
     "type": "object",
@@ -107,15 +110,22 @@ class LensService:
                 name="SpeciesId",
             )
         )
-        raw, ident = await asyncio.gather(sam_task, id_task)
+        try:
+            raw, ident = await asyncio.gather(sam_task, id_task)
+        except BaseException:
+            for t in (sam_task, id_task):  # don't keep billing the survivor
+                t.cancel()
+            raise
         boxes = sam.parse_boxes(raw)
         box = sam.largest(boxes)
         if box is None or box.area_fraction < 0.005:
-            return LensResult(
+            miss = LensResult(
                 found=False,
                 language=lang,
                 narration="I can't spot an animal yet. Try getting closer or hold still.",
             )
+            self._remember(self._cache, key, miss)  # same frame again → no second bill
+            return miss
 
         item = self.kb.get(ident.get("species_id", "none"))
         box_dict = {
@@ -128,7 +138,7 @@ class LensService:
             "n_found": len(boxes),
         }
         if item is None:
-            return LensResult(
+            unknown = LensResult(
                 found=True,
                 box=box_dict,
                 language=lang,
@@ -136,6 +146,8 @@ class LensService:
                 narration=f"I see {ident.get('what_i_see', 'an animal').rstrip('. ')}, "
                 f"but it isn't one of {self.kb.park}'s listed species.",
             )
+            self._remember(self._cache, key, unknown)
+            return unknown
 
         narration, fun = await self._narrate(item, party, lang)
 
@@ -186,7 +198,12 @@ class LensService:
     async def warm(self, party: Party | None, species_ids: list[str], language: str | None = None):
         """Pre-generate narration for the animals on today's plan so the first look is instant."""
         lang = language or (party.language if party else self.s.default_language)
-        items = [i for i in (self.kb.get(x) for x in species_ids) if i and i.kind == "animal"]
+        seen: dict[str, object] = {}
+        for x in species_ids[:40]:
+            i = self.kb.get(x)
+            if i and i.kind == "animal" and i.id not in seen:
+                seen[i.id] = i
+        items = list(seen.values())[:MAX_WARM]
 
         async def one(item):
             try:

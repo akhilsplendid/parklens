@@ -2,8 +2,8 @@
 
 SAM 3.1 answers in a special-token grammar, one line per frame, e.g.
     <0f>0<|box;x1=353;y1=382;x2=453;y2=427;w=537;h=561|><|mask;x=0;y=0;data=...|>,1<|box;...|>...
-Boxes are all the Lens needs (we crop and hand the crop to Muse Spark), so we parse them with a
-regex and keep no dependency. `meta_sam_parser` is used only when a caller wants masks.
+Boxes are all the Lens needs: they gate "found", are drawn on the phone, and the box is what
+Muse Image repaints in time travel (`crop`). We parse them with a regex and keep no dependency.
 """
 
 from __future__ import annotations
@@ -11,6 +11,27 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass
+
+# Image handling limits: a 9000x9000 PNG is 80 KB on the wire and 380 MB decoded.
+MAX_PIXELS = 25_000_000
+
+
+class BadImage(ValueError):
+    """Upload is not an image we can decode (HEIC, PDF, garbage) or is absurdly large."""
+
+
+def _open(image: bytes):
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+    try:
+        im = Image.open(io.BytesIO(image))
+        im.draft("RGB", (2048, 2048))  # cheap JPEG downscale at decode time
+        im = ImageOps.exif_transpose(im)  # phones store portrait shots rotated + an EXIF flag
+        return im.convert("RGB")
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError) as e:
+        raise BadImage(f"unsupported image: {e}") from e
+
 
 _BOX_RE = re.compile(
     r"(?:(?:^|<\d+f>|,)(?P<id>\d+))?<\|box;x1=(?P<x1>\d+);y1=(?P<y1>\d+);x2=(?P<x2>\d+);"
@@ -76,9 +97,7 @@ def largest(boxes: list[Box]) -> Box | None:
 
 def crop(image: bytes, box: Box, pad: float = 0.12, max_side: int = 768) -> bytes:
     """Crop the box (with padding) out of a JPEG/PNG and return a JPEG."""
-    from PIL import Image
-
-    im = Image.open(io.BytesIO(image)).convert("RGB")
+    im = _open(image)
     b = box.scaled(*im.size)
     pw, ph = int((b.x2 - b.x1) * pad), int((b.y2 - b.y1) * pad)
     region = (
@@ -96,9 +115,7 @@ def crop(image: bytes, box: Box, pad: float = 0.12, max_side: int = 768) -> byte
 
 def downscale(image: bytes, max_side: int) -> tuple[bytes, str]:
     """Shrink a camera frame before upload. Returns (jpeg_bytes, mime)."""
-    from PIL import Image
-
-    im = Image.open(io.BytesIO(image)).convert("RGB")
+    im = _open(image)
     if max(im.size) > max_side:
         im.thumbnail((max_side, max_side))
     buf = io.BytesIO()

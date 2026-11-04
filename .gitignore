@@ -17,4 +17,6 @@ api/.venv/
 *.tsbuildinfo
 .agent-context/
 api/parklens_api.egg-info/
+.ruff_cache/
+.pytest_cache/
 docs/assets/

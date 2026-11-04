@@ -1,0 +1,129 @@
+{
+  "park": "Kolmården",
+  "note": "Hand-written sample so a fresh clone runs. The real knowledge base is built from the park's own pages by scripts/extract_kb.py and is not committed. Facts here are short paraphrases of general knowledge, not the park's text; every item keeps the park page it stands for.",
+  "items": [
+    {
+      "id": "tiger",
+      "kind": "animal",
+      "name": "Amurtiger",
+      "scientific_name": "Panthera tigris altaica",
+      "text_sv": "The Amur tiger is the largest of all cats. It lives in the forests along the Amur river in the Russian Far East and north-east China, where winters are long and snowy, so it has a thick coat and a layer of fat. Tigers hunt alone, mostly at dusk, and can take prey far heavier than themselves. Only a few hundred remain in the wild; zoos take part in a coordinated breeding programme.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/tiger",
+      "lat": 58.6615,
+      "lon": 16.4511
+    },
+    {
+      "id": "lejon",
+      "kind": "animal",
+      "name": "Asiatiskt lejon",
+      "scientific_name": "Panthera leo persica",
+      "text_sv": "The Asiatic lion is a little smaller than its African cousin, with a shorter mane and a fold of skin along the belly. The whole wild population lives in one forest, Gir in western India. Lions are the only cats that live in groups; the females do most of the hunting while the males defend the territory.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/lejon",
+      "lat": 58.6627,
+      "lon": 16.4479
+    },
+    {
+      "id": "snoleopard",
+      "kind": "animal",
+      "name": "Snöleopard",
+      "scientific_name": "Panthera uncia",
+      "text_sv": "The snow leopard lives high in the mountains of Central Asia, where winter temperatures can drop far below freezing. Its long, thick tail works as a balance pole on cliffs and as a scarf when it sleeps. Huge paws act like snowshoes. It cannot roar; it chuffs and hisses instead.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/snoleopard",
+      "lat": 58.661,
+      "lon": 16.4563
+    },
+    {
+      "id": "delfin",
+      "kind": "animal",
+      "name": "Delfin",
+      "scientific_name": "Tursiops truncatus",
+      "text_sv": "Bottlenose dolphins are social, playful mammals that live in groups called pods. They find fish with echolocation, sending out clicks and listening for the echo. Each dolphin has its own signature whistle, a bit like a name. A dolphin sleeps with one half of its brain at a time so it remembers to breathe.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/delfin",
+      "lat": 58.6614,
+      "lon": 16.4467
+    },
+    {
+      "id": "elefant",
+      "kind": "animal",
+      "name": "Asiatisk elefant",
+      "scientific_name": "Elephas maximus",
+      "text_sv": "The Asian elephant is the largest land animal in Asia. It has smaller ears than the African elephant and only some males grow tusks. Elephants live in family groups led by the oldest female and can recognise each other after years apart. The trunk has tens of thousands of muscles and can pick up a single leaf.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/elefant",
+      "lat": 58.664,
+      "lon": 16.4531
+    },
+    {
+      "id": "giraff",
+      "kind": "animal",
+      "name": "Giraff",
+      "scientific_name": "Giraffa camelopardalis",
+      "text_sv": "The giraffe is the tallest animal on Earth. A newborn calf drops almost two metres to the ground and can stand within an hour. Giraffes eat leaves from the tops of acacia trees with a long, dark tongue, and they only need to sleep a few minutes at a time. No two giraffes have the same pattern of spots.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/giraff",
+      "lat": 58.6627,
+      "lon": 16.4479
+    },
+    {
+      "id": "gorilla",
+      "kind": "animal",
+      "name": "Västlig låglandsgorilla",
+      "scientific_name": "Gorilla gorilla gorilla",
+      "text_sv": "The western lowland gorilla is a calm, mostly vegetarian ape from the rainforests of central Africa. A family is led by a silverback male, named for the grey hair on his back. Gorillas build a fresh nest of leaves to sleep in every night. They share around 98 percent of their DNA with humans.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/gorilla",
+      "lat": 58.6628,
+      "lon": 16.4509
+    },
+    {
+      "id": "lodjur",
+      "kind": "animal",
+      "name": "Lodjur",
+      "scientific_name": "Lynx lynx",
+      "text_sv": "The Eurasian lynx is Sweden's only wild cat. It has tufted ears, a short tail and big furry paws that spread its weight on snow. Lynx are shy and hunt alone at dawn and dusk, mainly roe deer and hares. Its eyesight is so sharp it can spot a mouse at seventy metres.",
+      "source_url": "https://www.kolmarden.com/djurpark/djur/lodjur",
+      "lat": 58.6604,
+      "lon": 16.4535
+    },
+    {
+      "id": "wildfire",
+      "kind": "attraction",
+      "name": "Wildfire på Kolmården",
+      "text_sv": "Wildfire is a large wooden roller coaster built on the hillside above the bay, with steep drops and several inversions. It is the park's biggest thrill ride.",
+      "source_url": "https://www.kolmarden.com/parken/attraktioner/wildfire",
+      "height_requirement": "Minst 120 cm",
+      "lat": 58.6621,
+      "lon": 16.4471,
+      "min_height_cm": 120
+    },
+    {
+      "id": "sjorovarskeppet",
+      "kind": "attraction",
+      "name": "Sjörövarskeppet på Kolmården",
+      "text_sv": "The pirate ship swings back and forth, higher and higher, with a view over the water at the top of each swing.",
+      "source_url": "https://www.kolmarden.com/parken/attraktioner/sjorovarskeppet",
+      "height_requirement": "Minst 120 cm och 7 år",
+      "lat": 58.6612,
+      "lon": 16.4465,
+      "min_height_cm": 120
+    },
+    {
+      "id": "bamses-flygande-matta",
+      "kind": "attraction",
+      "name": "Bamses Flygande Matta på Kolmården",
+      "text_sv": "A gentle flying-carpet ride for younger children in the children's land, with a soft up-and-down motion.",
+      "source_url": "https://www.kolmarden.com/parken/attraktioner/bamses-flygande-matta",
+      "height_requirement": "Barn från 85 cm åker i vuxet sällskap. Minst 110 cm utan vuxen.",
+      "lat": 58.6625,
+      "lon": 16.4612,
+      "min_height_cm": 85
+    },
+    {
+      "id": "delfinexpressen",
+      "kind": "attraction",
+      "name": "Delfinexpressen",
+      "text_sv": "A small family train that runs between the dolphinarium and the rest of the park.",
+      "source_url": "https://www.kolmarden.com/parken/attraktioner/delfinexpressen",
+      "height_requirement": "Ingen längdgräns i vuxet sällskap, minst 110 cm & 5 år utan vuxen",
+      "lat": 58.6614,
+      "lon": 16.4467
+    }
+  ]
+}

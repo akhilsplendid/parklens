@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     asr_model: str = "muse-voice-transcribe-1.0"
 
     kb_path: Path = REPO_ROOT / "data" / "generated" / "kb.json"
+    # Committed, hand-written sample used when the generated KB is missing (fresh clone).
+    kb_sample_path: Path = REPO_ROOT / "data" / "kb.sample.json"
+    # Per-IP limits on the routes that spend credits (judges share one $150 key for a week).
+    rate_limit_per_minute: int = 20
+    rate_limit_per_day: int = 400
     park_name: str = "Kolmården"
     park_entrance_lat: float = 58.6619  # main entrance, next to Wildfire
     park_entrance_lon: float = 16.4462

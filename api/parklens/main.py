@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -20,9 +21,10 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 
-from . import __version__
+from . import __version__, sam
 from .config import Settings, get_settings
 from .kb import KnowledgeBase
 from .meta_client import HttpMetaClient, MetaAPIError, MetaClient
@@ -32,14 +34,26 @@ from .services.lens import LensService
 
 log = logging.getLogger("parklens")
 
+MAX_UPLOAD = 12 * 1024 * 1024
+BILLED_PREFIXES = ("/lens", "/timetravel", "/plan", "/onboard", "/transcribe")
+
+
+def settings(request: Request) -> Settings:
+    return request.app.state.settings
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    s = get_settings()
+    # Tests override `settings`; honour that here too so they never touch real data or keys.
+    s = app.dependency_overrides.get(settings, get_settings)()
     app.state.settings = s
-    app.state.kb = KnowledgeBase.load(s.kb_path)
+    path = s.kb_path if s.kb_path.exists() else s.kb_sample_path
+    if path != s.kb_path:
+        log.warning("generated KB missing; using the committed sample %s", path)
+    app.state.kb = KnowledgeBase.load(path)
     app.state.client = HttpMetaClient(s)
     app.state.lens = LensService(app.state.kb, app.state.client, s)
+    app.state.hits = defaultdict(deque)  # ip -> timestamps of billed requests
     log.info("loaded %d items for %s", len(app.state.kb.items), app.state.kb.park)
     yield
     await app.state.client.aclose()
@@ -47,6 +61,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ParkLens API", version=__version__, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    """Tiny per-IP limiter on the routes that call the Meta API. In-memory: fine for one VM."""
+    if request.method == "POST" and request.url.path.startswith(BILLED_PREFIXES):
+        s: Settings = request.app.state.settings
+        client_host = request.client.host if request.client else "?"
+        ip = request.headers.get("fly-client-ip") or client_host
+        q: deque = request.app.state.hits[ip]
+        now = time.time()
+        while q and now - q[0] > 86400:
+            q.popleft()
+        last_minute = sum(1 for t in q if now - t < 60)
+        if last_minute >= s.rate_limit_per_minute or len(q) >= s.rate_limit_per_day:
+            detail = "Too many requests; try again in a minute."
+            return JSONResponse(429, {"error": "rate_limited", "detail": detail})
+        q.append(now)
+    return await call_next(request)
 
 
 def kb(request: Request) -> KnowledgeBase:
@@ -61,15 +94,31 @@ def lens(request: Request) -> LensService:
     return request.app.state.lens
 
 
-def settings(request: Request) -> Settings:
-    return request.app.state.settings
-
-
 @app.exception_handler(MetaAPIError)
 async def meta_error(_: Request, exc: MetaAPIError):
-    from fastapi.responses import JSONResponse
+    status = 503 if exc.status in (429, 504) else 502
+    return JSONResponse(status_code=status, content={"error": "model_api", "detail": str(exc)})
 
-    return JSONResponse(status_code=502, content={"error": "model_api", "detail": str(exc)})
+
+@app.exception_handler(ValidationError)
+async def validation_error(_: Request, exc: ValidationError):
+    """Model output or a form field that doesn't fit our schema is a 422, not a crash."""
+    return JSONResponse(status_code=422, content={"error": "invalid", "detail": exc.errors()[:5]})
+
+
+@app.exception_handler(sam.BadImage)
+async def bad_image(_: Request, exc: sam.BadImage):
+    return JSONResponse(status_code=415, content={"error": "bad_image", "detail": str(exc)})
+
+
+async def read_upload(f: UploadFile) -> bytes:
+    """Read an upload with a size cap, checking Content-Length before buffering."""
+    if f.size is not None and f.size > MAX_UPLOAD:
+        raise HTTPException(413, "file too large")
+    data = await f.read(MAX_UPLOAD + 1)
+    if len(data) > MAX_UPLOAD:
+        raise HTTPException(413, "file too large")
+    return data
 
 
 @app.get("/health")
@@ -144,14 +193,14 @@ async def onboard_voice(
     audio: UploadFile = File(...),
 ):
     text, party = await onboard.transcribe_and_extract(
-        await audio.read(), audio.content_type or "audio/webm", c, s.default_language
+        await read_upload(audio), audio.content_type or "audio/webm", c, s.default_language
     )
     return {"transcript": text, "party": party}
 
 
 @app.post("/transcribe")
 async def transcribe(c: Annotated[MetaClient, Depends(client)], audio: UploadFile = File(...)):
-    text = await c.transcribe(await audio.read(), mime=audio.content_type or "audio/webm")
+    text = await c.transcribe(await read_upload(audio), mime=audio.content_type or "audio/webm")
     return {"text": text}
 
 
@@ -183,6 +232,8 @@ async def replan(
         params.get("hours_left"),
         params.get("pace"),
         (s.park_entrance_lat, s.park_entrance_lon),
+        here_id=body.here_id,
+        prefer=params.get("prefer"),
     )
     return await planner.narrate_plan(fresh, kb, c)
 
@@ -197,10 +248,7 @@ async def lens_analyze(
     expected: str | None = Form(None),
 ):
     p = Party.model_validate_json(party) if party else None
-    data = await image.read()
-    if len(data) > 12 * 1024 * 1024:
-        raise HTTPException(413, "image too large")
-    return await svc.analyze(data, p, hint, language, expected)
+    return await svc.analyze(await read_upload(image), p, hint, language, expected)
 
 
 class WarmRequest(BaseModel):
@@ -220,15 +268,30 @@ async def lens_warm(
 async def time_travel(
     kb: Annotated[KnowledgeBase, Depends(kb)],
     c: Annotated[MetaClient, Depends(client)],
+    s: Annotated[Settings, Depends(settings)],
     image: UploadFile = File(...),
     mode: str = Form("wild"),
     species_id: str | None = Form(None),
+    box: str | None = Form(None, description="the SAM box from /lens, as JSON"),
 ):
+    """Muse Image repaints the animal. When the Lens box is passed, the box (with padding) is
+    what gets repainted, so the ancestor is the tiger, not the fence."""
     item = kb.get(species_id) if species_id else None
+    data = await read_upload(image)
+    b = None
+    if box:
+        try:
+            d = json.loads(box)
+            x1, y1, x2, y2, w, h = (int(d[k]) for k in ("x1", "y1", "x2", "y2", "w", "h"))
+            b = sam.Box(0, x1, y1, x2, y2, w, h)
+        except (ValueError, KeyError, TypeError) as e:
+            raise HTTPException(400, f"bad box: {e}") from e
+    if b is not None and 0.02 < b.area_fraction < 0.6:
+        frame = sam.crop(data, b, pad=0.35, max_side=1024)
+    else:
+        frame, _ = sam.downscale(data, s.max_image_side)
     try:
-        out = await timetravel.time_travel(
-            await image.read(), item, mode, c, image.content_type or "image/jpeg"
-        )
+        out = await timetravel.time_travel(frame, item, mode, c, "image/jpeg")
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {
@@ -251,7 +314,8 @@ class Event(BaseModel):
 async def log_event(ev: Event, s: Annotated[Settings, Depends(settings)]):
     """Append one line to a local JSONL file so we can count what judges and testers use.
     Nothing personal is accepted: only a short event name and flat scalar props."""
-    if len(ev.name) > 40 or len(ev.props) > 12:
+    too_long = any(isinstance(v, str) and len(v) > 64 for v in ev.props.values())
+    if len(ev.name) > 40 or len(ev.props) > 12 or too_long:
         raise HTTPException(400, "event too large")
     line = {"t": int(time.time()), "name": ev.name, **{f"p_{k}": v for k, v in ev.props.items()}}
     try:

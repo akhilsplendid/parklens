@@ -63,8 +63,13 @@ def _rank_items(kb: KnowledgeBase, party: Party) -> tuple[list[Item], list[Item]
 
 
 def build_plan(
-    kb: KnowledgeBase, party: Party, entrance: tuple[float, float] | None = None
+    kb: KnowledgeBase,
+    party: Party,
+    entrance: tuple[float, float] | None = None,
+    prefer: str | None = None,
 ) -> Plan:
+    """`prefer` ("rides" | "animals") is a re-plan hint that changes how the two kinds are
+    interleaved; rules and the time budget are the same either way."""
     budget = int(party.hours_available * 60)
     factor = PACE_FACTOR[party.pace]
     animals, attractions = _rank_items(kb, party)
@@ -74,17 +79,21 @@ def build_plan(
         e = rules.check(a, party)
         (eligible if e.ok else skipped).append((a, e))
 
-    # Interleave: animal, animal, ride, animal, ride ... and a break every ~100 min.
+    # Interleave: animal, animal, ride, animal, animal, ride ... "Kids want more rides" flips
+    # it to ride, ride, animal; "more animals" drops rides to one in four.
+    rides = [a for a, _ in eligible]
+    rounds = {
+        "rides": [(rides, 2), (animals, 1)],
+        "animals": [(animals, 3), (rides, 1)],
+    }.get(prefer or "", [(animals, 2), (rides, 1)])
     queue: list[Item] = []
-    ai, ri = 0, 0
-    while ai < len(animals) or ri < len(eligible):
-        for _ in range(2):
-            if ai < len(animals):
-                queue.append(animals[ai])
-                ai += 1
-        if ri < len(eligible):
-            queue.append(eligible[ri][0])
-            ri += 1
+    pos = {id(animals): 0, id(rides): 0}
+    while any(pos[id(lst)] < len(lst) for lst, _ in rounds):
+        for lst, n in rounds:
+            for _ in range(n):
+                if pos[id(lst)] < len(lst):
+                    queue.append(lst[pos[id(lst)]])
+                    pos[id(lst)] += 1
 
     # Greedy fill: add stops in priority order, route them by walking distance from the
     # entrance (nearest neighbour) and keep each one only if the whole day still fits the
@@ -228,14 +237,19 @@ async def narrate_plan(plan: Plan, kb: KnowledgeBase, client: MetaClient | None)
     ]
     try:
         data = await client.chat_json(messages, WHY_SCHEMA, name="PlanWhy")
+        whys = {
+            str(d.get("item_id")): str(d.get("why") or "")
+            for d in data.get("stops") or []
+            if isinstance(d, dict)
+        }
+        summary = str(data.get("summary") or "")
     except Exception as exc:  # narration is optional; the plan itself is already valid
         log.warning("plan narration failed: %s", exc)
         return plan
-    whys = {d["item_id"]: d["why"] for d in data.get("stops", [])}
     for s in plan.stops:
-        if s.item_id in whys:
+        if whys.get(s.item_id):
             s.why = whys[s.item_id]
-    plan.summary = data.get("summary", "")
+    plan.summary = summary
     return plan
 
 
@@ -247,23 +261,32 @@ def replan(
     hours_left: float | None,
     pace: str | None = None,
     entrance: tuple[float, float] | None = None,
+    here_id: str | None = None,
+    prefer: str | None = None,
 ) -> Plan:
-    """Rebuild the rest of the day from `now`, dropping done stops. Same rules, new budget."""
-    party = plan.party.model_copy()
-    party.start_time = now
-    if hours_left is not None:
-        party.hours_available = hours_left
-    if pace:
-        party.pace = pace  # type: ignore[assignment]
+    """Rebuild the rest of the day from `now`, dropping done stops. Same rules, new budget.
+
+    Model-extracted values (hours_left, pace) go through Party validation again, so a bad
+    extraction ("pace": "tired") falls back to the old value instead of crashing."""
+    update: dict = {"start_time": now}
+    if hours_left is not None and 0 < hours_left <= 14:
+        update["hours_available"] = hours_left
+    if pace in PACE_FACTOR:
+        update["pace"] = pace
+    party = Party.model_validate(plan.party.model_copy(update=update).model_dump())
     done = set(done_ids)
-    # Start from where the family is now: the last stop they marked done, else the entrance.
+    # Start from where the family is now: the place they tapped on the map, else the last
+    # stop they marked done, else the entrance.
     here = entrance
     for s in plan.stops:
         if s.item_id in done and s.lat is not None:
             here = (s.lat, s.lon)
+    at = kb.get(here_id) if here_id else None
+    if at is not None and at.lat is not None:
+        here = (at.lat, at.lon)
     # Build a fresh plan without the done stops: the planner re-ranks, re-routes and re-times.
     pruned = KnowledgeBase([i for i in kb.items if i.id not in done], park=kb.park)
-    fresh = build_plan(pruned, party, here)
+    fresh = build_plan(pruned, party, here, prefer)
     return fresh
 
 
@@ -273,8 +296,13 @@ REPLAN_SCHEMA = {
         "hours_left": {"type": ["number", "null"]},
         "pace": {"type": ["string", "null"], "enum": ["relaxed", "normal", "packed", None]},
         "done_ids": {"type": "array", "items": {"type": "string"}},
+        "prefer": {
+            "type": ["string", "null"],
+            "enum": ["rides", "animals", None],
+            "description": "what they want more of now, if they said so",
+        },
     },
-    "required": ["hours_left", "pace", "done_ids"],
+    "required": ["hours_left", "pace", "done_ids", "prefer"],
 }
 
 
@@ -282,7 +310,36 @@ async def parse_replan_utterance(utterance: str, plan: Plan, client: MetaClient)
     """'We're tired, one hour left' → {hours_left: 1, pace: 'relaxed', done_ids: []}."""
     ids = ", ".join(s.item_id for s in plan.stops)
     messages = [
-        {"role": "system", "content": "Extract re-planning parameters. Unknown → null/empty."},
+        {
+            "role": "system",
+            "content": (
+                "Extract re-planning parameters from what a family at a park said. "
+                "'tired' or 'slow down' → pace relaxed; 'one hour left' → hours_left 1; "
+                "'more rides' → prefer rides; 'skip/seen the animals' → prefer rides and "
+                "done_ids = the animal ids; 'more animals' → prefer animals. Unknown → null/empty."
+            ),
+        },
         {"role": "user", "content": f"Planned stop ids: {ids}\nFamily said: {utterance}"},
     ]
-    return await client.chat_json(messages, REPLAN_SCHEMA, name="Replan")
+    try:
+        out = await client.chat_json(messages, REPLAN_SCHEMA, name="Replan")
+    except Exception as exc:  # the deterministic re-plan still runs with what we know
+        log.warning("replan extraction failed: %s", exc)
+        return _replan_fallback(utterance)
+    return out if isinstance(out, dict) else {}
+
+
+def _replan_fallback(utterance: str) -> dict:
+    """Keyword version of the extraction, used when the model is unavailable."""
+    u = utterance.lower()
+    out: dict = {"hours_left": None, "pace": None, "done_ids": [], "prefer": None}
+    for words, hours in (("one hour", 1), ("two hours", 2), ("half an hour", 0.5)):
+        if words in u:
+            out["hours_left"] = hours
+    if any(w in u for w in ("tired", "trött", "slow")):
+        out["pace"] = "relaxed"
+    if "ride" in u or "åk" in u:
+        out["prefer"] = "rides"
+    if "more animals" in u or "fler djur" in u:
+        out["prefer"] = "animals"
+    return out
