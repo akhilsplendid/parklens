@@ -11,6 +11,9 @@ Unofficial prototype; not affiliated with or endorsed by Kolmården.
   prehistoric ancestor.
 - The plan adapts during the day as you go.
 
+**Demo video (1:43):** [docs/demo/parklens-demo.mp4](https://github.com/akhilsplendid/parklens/raw/main/docs/demo/parklens-demo.mp4)
+· **Thread on X:** [the tiger, a million years ago](https://x.com/akhilsplendid/status/2118113529282633857)
+
 ## How it uses Meta's models
 
 | Step | Model | Endpoint |
