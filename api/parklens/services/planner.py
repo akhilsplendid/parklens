@@ -269,7 +269,7 @@ def replan(
     Model-extracted values (hours_left, pace) go through Party validation again, so a bad
     extraction ("pace": "tired") falls back to the old value instead of crashing."""
     update: dict = {"start_time": now}
-    if hours_left is not None and 0 < hours_left <= 14:
+    if isinstance(hours_left, (int, float)) and 0 < hours_left <= 14:
         update["hours_available"] = hours_left
     if pace in PACE_FACTOR:
         update["pace"] = pace

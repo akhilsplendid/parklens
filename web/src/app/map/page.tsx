@@ -59,7 +59,7 @@ export default function MapPage() {
           {/* all places */}
           {located.map((i) => (
             <g key={i.id} onClick={() => saveStored("here", here === i.id ? "" : i.id)} className="cursor-pointer" role="button" aria-label={i.name}>
-              <circle cx={x(i.lon!)} cy={y(i.lat!)} r={30} fill="transparent" /> {/* finger-sized hit area */}
+              <circle cx={x(i.lon!)} cy={y(i.lat!)} r={60} fill="transparent" /> {/* finger-sized hit area */}
               <circle cx={x(i.lon!)} cy={y(i.lat!)} r={routeIds.has(i.id) ? 16 : 9}
                       fill={i.kind === "attraction" ? "#f59e0b" : "#60a5fa"} fillOpacity={routeIds.has(i.id) ? 1 : 0.45}
                       stroke={here === i.id ? "#fff" : "none"} strokeWidth="3" />

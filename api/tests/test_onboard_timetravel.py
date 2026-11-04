@@ -59,3 +59,32 @@ def test_events_append(tmp_path):
         app.dependency_overrides.pop(settings_dep, None)
     lines = path.read_text().splitlines()
     assert len(lines) == 1 and '"p_species": "tiger"' in lines[0]
+
+
+def test_rate_limit_returns_429_with_cors(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from parklens.config import Settings
+    from parklens.main import app
+    from parklens.main import settings as settings_dep
+
+    app.dependency_overrides[settings_dep] = lambda: Settings(
+        model_api_key="x", rate_limit_per_minute=1, events_path=tmp_path / "e.jsonl"
+    )
+    try:
+        with TestClient(app) as c:
+            h = {"Origin": "https://parklens.vercel.app"}
+            r1 = c.post("/plan", json={"start_time": "24:00"}, headers=h)
+            assert r1.status_code == 422  # first billed call goes through (then fails validation)
+            r2 = c.post("/plan", json={"adults": 1}, headers=h)
+            assert r2.status_code == 429
+            assert r2.headers.get("access-control-allow-origin") == "*"
+            assert (
+                c.options(
+                    "/plan", headers={**h, "Access-Control-Request-Method": "POST"}
+                ).status_code
+                == 200
+            )
+            assert c.get("/health").status_code == 200  # reads are never limited
+    finally:
+        app.dependency_overrides.pop(settings_dep, None)

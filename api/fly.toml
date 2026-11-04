@@ -7,7 +7,7 @@ primary_region = "arn"   # Stockholm
   dockerfile = "Dockerfile"
 
 [env]
-  KB_PATH = "/app/kb.json"
+  KB_PATH = "/app/data/generated/kb.json"
   PARK_NAME = "Kolmården"
 
 [http_service]

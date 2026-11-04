@@ -60,7 +60,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ParkLens API", version=__version__, lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")
@@ -77,9 +76,12 @@ async def rate_limit(request: Request, call_next):
         last_minute = sum(1 for t in q if now - t < 60)
         if last_minute >= s.rate_limit_per_minute or len(q) >= s.rate_limit_per_day:
             detail = "Too many requests; try again in a minute."
-            return JSONResponse(429, {"error": "rate_limited", "detail": detail})
+            return JSONResponse({"error": "rate_limited", "detail": detail}, status_code=429)
         q.append(now)
     return await call_next(request)
+
+
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 def kb(request: Request) -> KnowledgeBase:
@@ -286,13 +288,15 @@ async def time_travel(
             b = sam.Box(0, x1, y1, x2, y2, w, h)
         except (ValueError, KeyError, TypeError) as e:
             raise HTTPException(400, f"bad box: {e}") from e
-    if b is not None and 0.02 < b.area_fraction < 0.6:
-        frame = sam.crop(data, b, pad=0.35, max_side=1024)
-    else:
-        frame, _ = sam.downscale(data, s.max_image_side)
     try:
+        if b is not None and 0.02 < b.area_fraction < 0.6:
+            frame = sam.crop(data, b, pad=0.35, max_side=1024)
+        else:
+            frame, _ = sam.downscale(data, s.max_image_side)
         out = await timetravel.time_travel(frame, item, mode, c, "image/jpeg")
-    except ValueError as e:
+    except sam.BadImage:
+        raise
+    except ValueError as e:  # bad mode, or a box outside the frame
         raise HTTPException(400, str(e)) from e
     return {
         "mode": mode,

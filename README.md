@@ -66,7 +66,7 @@ python scripts\smoke_test.py         # one real call: lists models, grounded tig
 cd api
 uv venv; .venv\Scripts\activate
 uv pip install -e ".[dev]"
-pytest -q                            # 27 tests, no network needed
+pytest -q                            # 28 tests, no network needed
 uvicorn parklens.main:app --reload   # http://127.0.0.1:8000/docs
 ```
 

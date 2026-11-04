@@ -66,7 +66,10 @@ class HttpMetaClient:
                 continue
             if r.status_code >= 400:
                 raise MetaAPIError(r.status_code, r.text[:500])
-            return r.json()
+            try:
+                return r.json()
+            except ValueError as e:
+                raise MetaAPIError(502, "non-JSON body") from e
         raise MetaAPIError(504, "unreachable")  # pragma: no cover
 
     @staticmethod
@@ -161,7 +164,10 @@ class HttpMetaClient:
                 "reasoning_strength": "low",
             },
         )
-        return base64.b64decode(data["data"][0]["b64_json"])
+        try:
+            return base64.b64decode(data["data"][0]["b64_json"])
+        except (KeyError, IndexError, TypeError, ValueError) as e:
+            raise MetaAPIError(502, "no image in reply") from e
 
     async def transcribe(self, audio: bytes, *, mime: str = "audio/webm") -> str:
         import httpx

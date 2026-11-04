@@ -62,7 +62,8 @@ export default function Lens() {
     if (!f) return;
     unlockSpeech();
     try {
-      const bmp = await createImageBitmap(f, { imageOrientation: "from-image" });
+      // Safari before 17 doesn't know imageOrientation; it applies EXIF by default anyway.
+      const bmp = await createImageBitmap(f, { imageOrientation: "from-image" }).catch(() => createImageBitmap(f));
       const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
       const c = document.createElement("canvas");
       c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
