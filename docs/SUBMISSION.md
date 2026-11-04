@@ -17,7 +17,7 @@ Indie Developer Track
 Build for Your World
 
 ## Most Viral Track (optional, X post link)
-Only if you post the before/after share card + video on X before submitting. Otherwise leave blank.
+https://x.com/akhilsplendid/status/2118113529282633857
 
 ## Project Description (≤ 3,000 chars)
 
@@ -47,7 +47,7 @@ Beyond the hackathon: I want to pitch this to Kolmården's owner, Parks & Resort
 https://github.com/akhilsplendid/parklens
 
 ## 3-Minute Demo Video
-<youtube url>
+https://youtu.be/nyJSFtMlPF4
 
 ## Describe your use of Meta products (≤ 3,000 chars)
 
